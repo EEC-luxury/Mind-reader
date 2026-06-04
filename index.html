@@ -13,9 +13,6 @@
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: #060410; color: #faf7f2; overflow: hidden; }
 
-  /* ── SPACE CANVAS ── */
-  #space-canvas { position: fixed; inset: 0; z-index: 0; }
-
   /* ── APP ── */
   #app { position: relative; z-index: 1; height: 100dvh; display: flex; flex-direction: column; }
 
@@ -198,9 +195,6 @@
 </head>
 <body>
 
-<!-- SPACE CANVAS -->
-<canvas id="space-canvas"></canvas>
-
 <div id="app">
 
   <!-- HOME -->
@@ -229,7 +223,7 @@
     <div class="hero">
       <div style="font-size:54px;margin-bottom:20px">💌</div>
       <div class="section-title">You've been<br/><em>invited</em></div>
-      <p class="section-desc" style="margin-top:8px">Enter your name to join the game</p>
+      <p class="section-desc" style="margin-top:8px">Room <span id="invite-room-code" style="color:var(--gold-light);font-family:'Cormorant Garamond',serif;font-size:16px;letter-spacing:0.12em"></span> is waiting for you</p>
       <div style="width:100%;margin-bottom:16px">
         <div class="label">Your name</div>
         <input type="text" id="link-name" placeholder="Enter your name…" maxlength="20"/>
@@ -491,163 +485,201 @@
 <div id="toast"></div>
 
 <!-- ══════════ SPACE BACKGROUND ══════════ -->
+<style>
+  #space-bg { position: fixed; inset: 0; z-index: 0; }
+  #space-bg canvas { position: absolute; inset: 0; }
+</style>
+<div id="space-bg">
+  <canvas id="canvas-bg"></canvas>
+  <canvas id="canvas-stars"></canvas>
+</div>
 <script>
 (function() {
-  const canvas = document.getElementById('space-canvas');
-  const ctx = canvas.getContext('2d');
-  let W, H, stars = [], shooters = [];
+  // ── Layer 1: static background (drawn ONCE) ──
+  const bgC = document.getElementById('canvas-bg');
+  const bgX = bgC.getContext('2d');
 
-  function resize() {
-    W = canvas.width = window.innerWidth;
-    H = canvas.height = window.innerHeight;
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  // Static drifting stars
-  for (let i = 0; i < 220; i++) {
-    stars.push({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      r: Math.random() * 1.4 + 0.2,
-      op: Math.random() * 0.7 + 0.1,
-      twinkleSpeed: 0.004 + Math.random() * 0.012,
-      twinklePhase: Math.random() * Math.PI * 2,
-      driftX: (Math.random() - 0.5) * 0.03,
-      driftY: (Math.random() - 0.5) * 0.03,
-      // subtle color: mostly white, occasional rose or gold tint
-      hue: Math.random() < 0.08 ? 'rose' : Math.random() < 0.06 ? 'gold' : 'white'
-    });
-  }
-
-  function spawnShooter() {
-    // Random angle — truly any direction
-    const angle = Math.random() * Math.PI * 2;
-    // Start from a random edge point
-    let sx, sy;
-    const edge = Math.floor(Math.random() * 4);
-    if (edge === 0) { sx = Math.random() * W; sy = -10; }
-    else if (edge === 1) { sx = W + 10; sy = Math.random() * H; }
-    else if (edge === 2) { sx = Math.random() * W; sy = H + 10; }
-    else { sx = -10; sy = Math.random() * H; }
-
-    const speed = 3.5 + Math.random() * 5;
-    const len = 60 + Math.random() * 120;
-    const life = len / speed * 1.8;
-
-    shooters.push({
-      x: sx, y: sy,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      len, life, maxLife: life,
-      op: 0,
-      // Occasionally a rare disappear (fade out mid-flight)
-      fadeEarly: Math.random() < 0.25
-    });
-  }
-
-  // Spawn shooting stars at random intervals
-  function scheduleShooter() {
-    const delay = 2000 + Math.random() * 6000;
-    setTimeout(() => {
-      spawnShooter();
-      scheduleShooter();
-    }, delay);
-  }
-  scheduleShooter();
-  // Also spawn one right away after a short pause
-  setTimeout(spawnShooter, 800);
-
-  let frame = 0;
-  function draw() {
-    requestAnimationFrame(draw);
-    frame++;
-
-    // Deep space gradient background
-    const grad = ctx.createRadialGradient(W*0.3, H*0.15, 0, W*0.5, H*0.5, W*0.9);
+  function drawBg() {
+    const W = bgC.width = window.innerWidth;
+    const H = bgC.height = window.innerHeight;
+    const grad = bgX.createRadialGradient(W*0.3, H*0.15, 0, W*0.5, H*0.5, W*0.9);
     grad.addColorStop(0, '#1a0520');
     grad.addColorStop(0.4, '#080314');
     grad.addColorStop(0.75, '#04060f');
     grad.addColorStop(1, '#020208');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, W, H);
-
+    bgX.fillStyle = grad; bgX.fillRect(0,0,W,H);
     // Nebula wisps
-    ctx.save();
-    ctx.globalAlpha = 0.04;
-    const n1 = ctx.createRadialGradient(W*0.2, H*0.3, 0, W*0.2, H*0.3, W*0.4);
-    n1.addColorStop(0, '#c9707a'); n1.addColorStop(1, 'transparent');
-    ctx.fillStyle = n1; ctx.fillRect(0,0,W,H);
-    const n2 = ctx.createRadialGradient(W*0.8, H*0.7, 0, W*0.8, H*0.7, W*0.35);
-    n2.addColorStop(0, '#4040c9'); n2.addColorStop(1, 'transparent');
-    ctx.fillStyle = n2; ctx.fillRect(0,0,W,H);
-    ctx.restore();
+    bgX.save(); bgX.globalAlpha = 0.05;
+    const n1 = bgX.createRadialGradient(W*0.2,H*0.3,0,W*0.2,H*0.3,W*0.4);
+    n1.addColorStop(0,'#c9707a'); n1.addColorStop(1,'transparent');
+    bgX.fillStyle=n1; bgX.fillRect(0,0,W,H);
+    const n2 = bgX.createRadialGradient(W*0.8,H*0.7,0,W*0.8,H*0.7,W*0.35);
+    n2.addColorStop(0,'#3030aa'); n2.addColorStop(1,'transparent');
+    bgX.fillStyle=n2; bgX.fillRect(0,0,W,H);
+    bgX.restore();
+  }
+  drawBg();
+  window.addEventListener('resize', drawBg);
+
+  // ── Layer 2: stars + shooters (animated) ──
+  const stC = document.getElementById('canvas-stars');
+  const stX = stC.getContext('2d');
+  let W, H;
+
+  function resize() { W = stC.width = window.innerWidth; H = stC.height = window.innerHeight; }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Stars all drift in one direction (parallax depth via speed variation)
+  const ANGLE = Math.PI * 0.18; // gentle diagonal: top-left → bottom-right
+  const stars = [];
+  for (let i = 0; i < 220; i++) {
+    const spd = 0.12 + Math.random() * 0.25;
+    stars.push({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() * 1.5 + 0.2,
+      op: Math.random() * 0.7 + 0.22,
+      twinkleSpeed: 0.002 + Math.random() * 0.007,
+      twinklePhase: Math.random() * Math.PI * 2,
+      dx: Math.cos(ANGLE) * spd,
+      dy: Math.sin(ANGLE) * spd,
+      color: Math.random() < 0.07 ? '#f5c0c8' : Math.random() < 0.06 ? '#f5e0a0' : '#ffffff'
+    });
+  }
+
+  // Shooters: always travel from one screen edge to opposite edge
+  const shooters = [];
+
+  function spawnShooter() {
+    // Pick a random entry edge: 0=top,1=right,2=bottom,3=left
+    const entry = Math.floor(Math.random() * 4);
+    let sx, sy, angle;
+    if (entry === 0) {
+      sx = Math.random() * W; sy = -8;
+      // Must travel downward: angle between 20° and 160°
+      angle = (20 + Math.random() * 140) * Math.PI / 180;
+    } else if (entry === 1) {
+      sx = W + 8; sy = Math.random() * H;
+      // Must travel leftward: angle between 100° and 260°
+      angle = (100 + Math.random() * 160) * Math.PI / 180;
+    } else if (entry === 2) {
+      sx = Math.random() * W; sy = H + 8;
+      // Must travel upward: angle between 200° and 340°
+      angle = (200 + Math.random() * 140) * Math.PI / 180;
+    } else {
+      sx = -8; sy = Math.random() * H;
+      // Must travel rightward: angle between -80° and 80°
+      angle = (-80 + Math.random() * 160) * Math.PI / 180;
+    }
+
+    // Slower, more graceful — you want to follow it, not blink and miss it
+    const speed = 2.2 + Math.random() * 1.8;
+    const vx = Math.cos(angle) * speed;
+    const vy = Math.sin(angle) * speed;
+    const tailLen = 60 + Math.random() * 80;
+    const screenDiag = Math.hypot(W, H);
+    const life = Math.ceil((screenDiag + tailLen) / speed);
+
+    shooters.push({ x: sx, y: sy, vx, vy, tailLen, life, maxLife: life });
+  }
+
+  function scheduleShooter() {
+    // Rare — 9 to 20 seconds apart. Only one ever on screen at a time.
+    const delay = 9000 + Math.random() * 11000;
+    setTimeout(() => {
+      if (shooters.length === 0) spawnShooter();
+      scheduleShooter();
+    }, delay);
+  }
+  // First appearance after a calm 7 seconds
+  setTimeout(() => { if (shooters.length === 0) spawnShooter(); scheduleShooter(); }, 7000);
+
+  function draw() {
+    requestAnimationFrame(draw);
+    stX.clearRect(0, 0, W, H);
 
     // Stars
-    stars.forEach(s => {
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
       s.twinklePhase += s.twinkleSpeed;
-      const twinkle = 0.4 + 0.6 * (Math.sin(s.twinklePhase) * 0.5 + 0.5);
-      s.x += s.driftX; s.y += s.driftY;
-      if (s.x < -2) s.x = W + 2;
+      const tw = 0.45 + 0.55 * (Math.sin(s.twinklePhase) * 0.5 + 0.5);
+      s.x += s.dx; s.y += s.dy;
       if (s.x > W + 2) s.x = -2;
-      if (s.y < -2) s.y = H + 2;
       if (s.y > H + 2) s.y = -2;
+      if (s.x < -2) s.x = W + 2;
+      if (s.y < -2) s.y = H + 2;
+      stX.globalAlpha = s.op * tw;
+      stX.fillStyle = s.color;
+      stX.beginPath();
+      stX.arc(s.x, s.y, s.r, 0, 6.2832);
+      stX.fill();
+    }
 
-      ctx.save();
-      ctx.globalAlpha = s.op * twinkle;
-      if (s.hue === 'rose') ctx.fillStyle = '#f0b0b8';
-      else if (s.hue === 'gold') ctx.fillStyle = '#f0d890';
-      else ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
-
-    // Shooting stars
-    shooters.forEach((s, i) => {
+    // Shooting stars — simple, no radial gradients
+    for (let i = shooters.length - 1; i >= 0; i--) {
+      const s = shooters[i];
       s.x += s.vx; s.y += s.vy;
       s.life--;
+      if (s.life <= 0) { shooters.splice(i, 1); continue; }
 
-      const progress = 1 - s.life / s.maxLife;
+      // Fade in first 8% of life, fade out last 12%
+      const t = s.life / s.maxLife; // 1→0 as it travels
+      const progress = 1 - t;
+      let alpha;
+      if (progress < 0.08) alpha = progress / 0.08;
+      else if (t < 0.12) alpha = t / 0.12;
+      else alpha = 1;
 
-      // Fade in then out (or fade early for 'disappear' effect)
-      if (s.fadeEarly) {
-        s.op = progress < 0.3 ? progress / 0.3 : 1 - (progress - 0.3) / 0.7;
-      } else {
-        s.op = progress < 0.15 ? progress / 0.15 : Math.max(0, 1 - (progress - 0.15) / 0.85);
-      }
+      const spd = Math.hypot(s.vx, s.vy);
+      const nx = s.vx / spd, ny = s.vy / spd;
+      const tx = s.x - nx * s.tailLen;
+      const ty = s.y - ny * s.tailLen;
 
-      if (s.life <= 0 || s.op <= 0) { shooters.splice(i, 1); return; }
+      // Tail — linear gradient, no radial = cheap
+      stX.globalAlpha = alpha * 0.9;
+      const grad = stX.createLinearGradient(tx, ty, s.x, s.y);
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.7, 'rgba(255,245,255,0.4)');
+      grad.addColorStop(1, 'rgba(255,255,255,1)');
+      stX.strokeStyle = grad;
+      stX.lineWidth = 1.8;
+      stX.lineCap = 'round';
+      stX.beginPath();
+      stX.moveTo(tx, ty);
+      stX.lineTo(s.x, s.y);
+      stX.stroke();
 
-      const tailX = s.x - s.vx / Math.hypot(s.vx, s.vy) * s.len;
-      const tailY = s.y - s.vy / Math.hypot(s.vx, s.vy) * s.len;
+      // Soft wide tail (second pass, thicker, dimmer)
+      stX.globalAlpha = alpha * 0.18;
+      const grad2 = stX.createLinearGradient(tx, ty, s.x, s.y);
+      grad2.addColorStop(0, 'rgba(200,160,255,0)');
+      grad2.addColorStop(1, 'rgba(220,200,255,0.9)');
+      stX.strokeStyle = grad2;
+      stX.lineWidth = 5;
+      stX.beginPath();
+      stX.moveTo(tx, ty);
+      stX.lineTo(s.x, s.y);
+      stX.stroke();
 
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, s.op);
-      const sg = ctx.createLinearGradient(tailX, tailY, s.x, s.y);
-      sg.addColorStop(0, 'transparent');
-      sg.addColorStop(0.6, 'rgba(255,255,255,0.15)');
-      sg.addColorStop(1, 'rgba(255,255,255,0.95)');
-      ctx.strokeStyle = sg;
-      ctx.lineWidth = 1.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(tailX, tailY);
-      ctx.lineTo(s.x, s.y);
-      ctx.stroke();
+      // Head: just a bright filled circle — no radial gradient
+      stX.globalAlpha = alpha;
+      stX.fillStyle = '#ffffff';
+      stX.beginPath();
+      stX.arc(s.x, s.y, 2, 0, 6.2832);
+      stX.fill();
 
-      // Bright head glow
-      ctx.globalAlpha = Math.max(0, s.op * 0.9);
-      const glow = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 4);
-      glow.addColorStop(0, 'rgba(255,255,255,1)');
-      glow.addColorStop(1, 'transparent');
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(s.x, s.y, 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    });
+      // One small soft halo: arc with shadowBlur (GPU-friendly on mobile)
+      stX.globalAlpha = alpha * 0.6;
+      stX.shadowBlur = 8;
+      stX.shadowColor = '#e0d0ff';
+      stX.fillStyle = '#ffffff';
+      stX.beginPath();
+      stX.arc(s.x, s.y, 2.5, 0, 6.2832);
+      stX.fill();
+      stX.shadowBlur = 0;
+    }
+
+    stX.globalAlpha = 1;
   }
   draw();
 })();
@@ -684,7 +716,15 @@ let state = {
 (function checkDeepLink() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('room');
-  if (code) { state.pendingLinkCode = code.toUpperCase(); showScreen('screen-join-link'); }
+  if (code) {
+    state.pendingLinkCode = code.toUpperCase();
+    // Show invite screen and also display the room code they're joining
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('screen-join-link');
+    if (el) el.classList.add('active');
+    const codeEl = document.getElementById('invite-room-code');
+    if (codeEl) codeEl.textContent = code.toUpperCase();
+  }
 })();
 
 // ── UTILITIES ──
@@ -1084,9 +1124,9 @@ Be generous — same idea in different words = match. Only false if genuinely di
     }
   } catch(err) {
     console.error(err);
-    // Fallback: setter reviews
+    // Fallback: setter reviews — include match:null so verdict screen renders cleanly
     await update(ref(db, `rooms/${state.roomCode}`), {
-      verdict: 'AI could not decide — you make the call.',
+      match: null, verdict: 'AI could not reach a verdict — you make the call.',
       phase: 'setter_review'
     });
   }
