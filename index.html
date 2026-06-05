@@ -164,7 +164,22 @@
   #chat-input:focus { border-color: var(--rose); }
   #chat-send { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, var(--rose), var(--rose-deep)); border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.15s; }
   #chat-send:active { transform: scale(0.9); }
-  .chat-empty { text-align: center; color: rgba(255,255,255,0.22); font-size: 13px; font-family: 'Cormorant Garamond', serif; font-style: italic; margin: auto; padding: 32px 0; line-height: 1.8; }
+  /* ── REPLY PREVIEW (above input) ── */
+  #reply-preview { display: none; align-items: center; gap: 10px; padding: 10px 18px 6px; flex-shrink: 0; border-top: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03); }
+  #reply-preview.visible { display: flex; }
+  #reply-preview-bar { width: 3px; border-radius: 3px; background: var(--rose); flex-shrink: 0; align-self: stretch; }
+  #reply-preview-content { flex: 1; overflow: hidden; }
+  #reply-preview-name { font-size: 10px; color: var(--rose); font-weight: 500; letter-spacing: 0.06em; margin-bottom: 2px; }
+  #reply-preview-text { font-size: 12px; color: rgba(255,255,255,0.45); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #reply-cancel { background: none; border: none; color: rgba(255,255,255,0.35); font-size: 18px; cursor: pointer; padding: 2px 4px; line-height: 1; flex-shrink: 0; }
+  /* Reply quote inside bubble */
+  .chat-reply-quote { border-left: 3px solid rgba(255,255,255,0.3); padding: 5px 9px; margin-bottom: 7px; border-radius: 0 6px 6px 0; background: rgba(0,0,0,0.18); }
+  .chat-msg.mine .chat-reply-quote { border-left-color: rgba(255,255,255,0.5); }
+  .chat-reply-quote-name { font-size: 10px; font-weight: 600; margin-bottom: 2px; opacity: 0.75; }
+  .chat-reply-quote-text { font-size: 12px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Swipe-to-reply hint */
+  .chat-msg { position: relative; cursor: pointer; }
+  .chat-msg:active { opacity: 0.85; }
 
   /* ── UNDER REVIEW SCREEN ── */
   .review-glow { width: 72px; height: 72px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e8cc7a, var(--gold) 50%, #3a2000); animation: reviewPulse 2s ease-in-out infinite; margin-bottom: 22px; }
@@ -365,7 +380,7 @@
     </div>
     <div class="btn-stack">
       <button class="btn btn-primary" id="next-btn" onclick="nextRound()">Play Next Round ✦</button>
-      <button class="btn btn-ghost" onclick="endGame()">End Game</button>
+      <button class="btn btn-ghost" id="end-game-btn" onclick="endGame()">End Game</button>
     </div>
   </div>
 
@@ -463,6 +478,14 @@
   </div>
   <div id="chat-messages">
     <div class="chat-empty" id="chat-empty">No messages yet…<br/>say something sweet 🌹</div>
+  </div>
+  <div id="reply-preview">
+    <div id="reply-preview-bar"></div>
+    <div id="reply-preview-content">
+      <div id="reply-preview-name"></div>
+      <div id="reply-preview-text"></div>
+    </div>
+    <button id="reply-cancel" onclick="cancelReply()">✕</button>
   </div>
   <div id="chat-input-row">
     <textarea id="chat-input" placeholder="Say something…" rows="1" oninput="autoResize(this)" onkeydown="chatKeydown(event)"></textarea>
@@ -772,6 +795,8 @@ function showChatFab(visible) {
 }
 
 // ── CHAT ──
+let replyingTo = null; // { id, name, text }
+
 window.toggleChat = function() {
   const panel = document.getElementById('chat-panel');
   state.chatOpen = !state.chatOpen;
@@ -796,22 +821,40 @@ window.chatKeydown = function(e) {
   }
 };
 
+window.startReply = function(id, senderName, text) {
+  replyingTo = { id, name: senderName, text };
+  document.getElementById('reply-preview-name').textContent = senderName;
+  document.getElementById('reply-preview-text').textContent = text;
+  document.getElementById('reply-preview').classList.add('visible');
+  document.getElementById('chat-input').focus();
+};
+
+window.cancelReply = function() {
+  replyingTo = null;
+  document.getElementById('reply-preview').classList.remove('visible');
+};
+
 window.sendChatMessage = async function() {
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg || !state.roomCode) return;
   const btn = document.getElementById('chat-send');
   btn.disabled = true;
+  const payload = {
+    sender: state.myRole, name: state.myName,
+    text: msg, ts: Date.now()
+  };
+  if (replyingTo) {
+    payload.replyTo = { id: replyingTo.id, name: replyingTo.name, text: replyingTo.text };
+  }
   input.value = ''; input.style.height = 'auto';
+  cancelReply();
   try {
     const chatRef = ref(db, `rooms/${state.roomCode}/chat`);
-    await push(chatRef, {
-      sender: state.myRole, name: state.myName,
-      text: msg, ts: Date.now()
-    });
+    await push(chatRef, payload);
   } catch(err) {
     console.error('Chat send failed:', err);
-    input.value = msg; // restore message if send failed
+    input.value = msg;
   } finally {
     btn.disabled = false;
   }
@@ -830,18 +873,29 @@ function listenToChat(code) {
 
 function renderChat(msgs) {
   const container = document.getElementById('chat-messages');
-  const empty = document.getElementById('chat-empty');
-  if (!msgs.length) { empty.style.display = 'block'; return; }
-  empty.style.display = 'none';
 
-  // Count new messages when chat is closed
+  // Bug 8 fix: empty div must live OUTSIDE innerHTML clearing zone.
+  // We use a sentinel check — rebuild it if wiped.
+  let empty = document.getElementById('chat-empty');
+  if (!empty) {
+    empty = document.createElement('div');
+    empty.id = 'chat-empty';
+    empty.className = 'chat-empty';
+    empty.innerHTML = 'No messages yet…<br/>say something sweet 🌹';
+  }
+
+  if (!msgs.length) {
+    container.innerHTML = '';
+    container.appendChild(empty);
+    empty.style.display = 'block';
+    return;
+  }
+
+  // Count unread from partner when chat is closed
   const prevCount = container.querySelectorAll('.chat-msg').length;
-  const newCount = msgs.length;
-  if (!state.chatOpen && newCount > prevCount) {
-    const diff = newCount - prevCount;
-    // Only count messages from partner
-    const lastNew = msgs.slice(msgs.length - diff);
-    const partnerNew = lastNew.filter(m => m.sender !== state.myRole).length;
+  if (!state.chatOpen && msgs.length > prevCount) {
+    const diff = msgs.length - prevCount;
+    const partnerNew = msgs.slice(msgs.length - diff).filter(m => m.sender !== state.myRole).length;
     if (partnerNew > 0) {
       state.unreadCount += partnerNew;
       const badge = document.getElementById('chat-unread');
@@ -851,18 +905,37 @@ function renderChat(msgs) {
   }
 
   const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 60;
-  container.innerHTML = '';
+  container.innerHTML = ''; // safe — empty div is detached above
+
   msgs.forEach(m => {
     const isMine = m.sender === state.myRole;
+    const senderLabel = isMine ? 'You' : (m.name || 'Partner');
+    const time = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+
     const div = document.createElement('div');
     div.className = `chat-msg ${isMine ? 'mine' : 'theirs'}`;
-    const time = m.ts ? new Date(m.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+    div.setAttribute('data-id', m.id);
+    div.title = 'Tap to reply';
+
+    let replyHTML = '';
+    if (m.replyTo) {
+      replyHTML = `<div class="chat-reply-quote">
+        <div class="chat-reply-quote-name">${escapeHtml(m.replyTo.name)}</div>
+        <div class="chat-reply-quote-text">${escapeHtml(m.replyTo.text)}</div>
+      </div>`;
+    }
+
     div.innerHTML = `
-      <div class="chat-sender">${isMine ? 'You' : (m.name || 'Partner')}</div>
-      <div class="chat-bubble">${escapeHtml(m.text)}</div>
+      <div class="chat-sender">${senderLabel}</div>
+      <div class="chat-bubble">${replyHTML}${escapeHtml(m.text)}</div>
       <div class="chat-time">${time}</div>`;
+
+    // Tap to reply
+    div.addEventListener('click', () => startReply(m.id, senderLabel, m.text));
+
     container.appendChild(div);
   });
+
   if (wasAtBottom || state.chatOpen) container.scrollTop = container.scrollHeight;
 }
 
@@ -920,7 +993,7 @@ window.confirmYes = async function() {
     });
   } else if (decision === 'wrong') {
     await update(ref(db, `rooms/${state.roomCode}`), {
-      match: false, setterOverride: 'wrong', phase: 'game_over'
+      match: false, setterOverride: 'wrong', phase: 'result'
     });
   } else if (decision === 'reattempt') {
     await update(ref(db, `rooms/${state.roomCode}`), {
@@ -1002,7 +1075,7 @@ function showSetterVerdictScreen(d) {
   document.getElementById('sv-guesser-answer').textContent = d.guessAnswer || '—';
   document.getElementById('sv-ai-verdict').textContent = d.verdict || 'No AI verdict available.';
   const guesserName = d.currentSetter === 'player1' ? d.player2Name : d.player1Name;
-  document.getElementById('sv-guesser-label').textContent = `${guesserName || 'Their'}'s Answer`;
+  document.getElementById('sv-guesser-label').textContent = `${guesserName ? guesserName + "'s" : 'Their'} Answer`;
   showScreen('screen-setter-verdict');
 }
 
@@ -1059,7 +1132,7 @@ window.joinRoom = async function() {
   const name = document.getElementById('my-name').value.trim();
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   if (!name) { toast('Enter your name first 💕'); return; }
-  if (!code || code.length < 4) { toast('Enter the room code'); return; }
+  if (!code || code.length < 5) { toast('Enter the room code'); return; }
   const snap = await get(ref(db, `rooms/${code}`));
   if (!snap.exists()) { toast('Room not found 💔'); return; }
   state.myName = name; state.myRole = 'player2'; state.roomCode = code;
@@ -1074,20 +1147,34 @@ window.lockQuestion = async function() {
   const a = document.getElementById('setter-answer').value.trim();
   if (!q) { toast('Write a question first ✦'); return; }
   if (!a) { toast('Write your secret answer ✦'); return; }
-  await update(ref(db, `rooms/${state.roomCode}`), {
-    question: q, setterAnswer: a, guessAnswer: null,
-    phase: 'question_set', verdict: null, match: null, setterOverride: null
-  });
+  const btn = document.querySelector('#screen-setter .btn-gold');
+  if (btn) btn.disabled = true;
+  try {
+    await update(ref(db, `rooms/${state.roomCode}`), {
+      question: q, setterAnswer: a, guessAnswer: null,
+      phase: 'question_set', verdict: null, match: null, setterOverride: null
+    });
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 };
 
 window.submitGuess = async function() {
   const a = document.getElementById('guesser-answer').value.trim();
   if (!a) { toast('Write your answer first 🔮'); return; }
-  await update(ref(db, `rooms/${state.roomCode}`), { guessAnswer: a, phase: 'judging' });
-  showScreen('screen-judging');
-  const snap = await get(ref(db, `rooms/${state.roomCode}`));
-  const d = snap.val();
-  await judgeWithAI(d.question, d.setterAnswer, a);
+  const btn = document.querySelector('#screen-guesser .btn-primary');
+  if (btn) btn.disabled = true;
+  try {
+    // Fetch room first to get setterAnswer before we overwrite phase
+    const snap = await get(ref(db, `rooms/${state.roomCode}`));
+    const d = snap.val();
+    if (!d || !d.setterAnswer) { toast('Something went wrong, try again 💔'); return; }
+    await update(ref(db, `rooms/${state.roomCode}`), { guessAnswer: a, phase: 'judging' });
+    showScreen('screen-judging');
+    await judgeWithAI(d.question, d.setterAnswer, a);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 };
 
 // ── AI JUDGE (Gemini) ──
@@ -1163,10 +1250,14 @@ function displayResult(data) {
     spawnConfetti();
     const nextSetter = data.currentSetter === 'player1' ? 'player2' : 'player1';
     document.getElementById('next-btn').setAttribute('data-next-setter', nextSetter);
-    document.getElementById('next-btn').style.display = '';
   } else {
-    document.getElementById('next-btn').style.display = 'none';
+    // No match from AI — setter still reviewed. If they marked 'wrong', End Game is the only logical move.
+    const nextSetter = data.currentSetter === 'player1' ? 'player2' : 'player1';
+    document.getElementById('next-btn').setAttribute('data-next-setter', nextSetter);
   }
+  // Always show both buttons so players aren't stranded
+  document.getElementById('next-btn').style.display = data.setterOverride === 'wrong' ? 'none' : '';
+  document.getElementById('end-game-btn').style.display = '';
   updateScoreUI();
   showScreen('screen-result');
 }
@@ -1210,8 +1301,11 @@ window.goHome = function() {
     pendingLinkCode:null, chatOpen:false, unreadCount:0, pendingDecision:null };
   document.getElementById('my-name').value='';
   document.getElementById('join-code').value='';
+  document.getElementById('link-name').value='';
   document.getElementById('chat-panel').classList.remove('open');
   showChatFab(false);
+  // Clear any ?room= param from URL without page reload
+  if (window.location.search) window.history.replaceState({}, '', window.location.pathname);
   showScreen('screen-home');
 };
 
