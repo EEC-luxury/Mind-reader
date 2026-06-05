@@ -815,7 +815,7 @@ window.autoResize = function(el) {
 };
 
 window.chatKeydown = function(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.repeat) {
     e.preventDefault();
     sendChatMessage();
   }
@@ -834,11 +834,13 @@ window.cancelReply = function() {
   document.getElementById('reply-preview').classList.remove('visible');
 };
 
+let isSendingChat = false;
 window.sendChatMessage = async function() {
+  if (isSendingChat) return;
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
   if (!msg || !state.roomCode) return;
-  document.getElementById('chat-send').disabled = true;
+  isSendingChat = true;
   const payload = {
     sender: state.myRole, name: state.myName,
     text: msg, ts: Date.now()
@@ -854,14 +856,9 @@ window.sendChatMessage = async function() {
   } catch(err) {
     console.error('Chat send failed:', err);
     input.value = msg;
-    if (err.message && err.message.includes('permission')) {
-      toast('Chat blocked — Firebase rules need updating 🔧');
-    } else {
-      toast('Message failed to send — check your connection 💔');
-    }
+    toast('Message failed — check connection 💔');
   } finally {
-    const btn = document.getElementById('chat-send');
-    if (btn) btn.disabled = false;
+    isSendingChat = false;
   }
 };
 
