@@ -2069,10 +2069,10 @@ body::before {
      FIREBASE + APP LOGIC
 ════════════════════════════════════════════════════ -->
 <script type="module">
-import { initializeApp }            from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+import { initializeApp }            from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
 import { getDatabase, ref, set, get,
          update, onValue, off, push,
-         onDisconnect }             from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
+         onDisconnect }             from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
 
 /* ── FIREBASE CONFIGS ── */
 const firebaseConfig = {
@@ -2103,11 +2103,15 @@ const DEFAULT_PIN = { p1: "2026", p2: "1234" };
 let cachedPins  = { p1: null, p2: null };  // loaded from Firebase after room join
 let pinsLoaded  = false;
 
-/* Load pins from Firebase for a given room */
+/* Load pins from Firebase for a given room — 5s timeout fallback */
 async function loadPins(roomCode) {
+  const timeout = new Promise(resolve => setTimeout(() => resolve(null), 5000));
   try {
-    const snap = await get(ref(db, `rooms/${roomCode}/pins`));
-    const data = snap.val() || {};
+    const result = await Promise.race([
+      get(ref(db, `rooms/${roomCode}/pins`)),
+      timeout
+    ]);
+    const data = (result && result.val()) ? result.val() : {};
     cachedPins.p1 = data.p1 || DEFAULT_PIN.p1;
     cachedPins.p2 = data.p2 || DEFAULT_PIN.p2;
     pinsLoaded = true;
@@ -2116,6 +2120,14 @@ async function loadPins(roomCode) {
     cachedPins.p2 = DEFAULT_PIN.p2;
     pinsLoaded = true;
   }
+}
+
+function setPinKeypadDisabled(disabled) {
+  const btns = document.querySelectorAll("#pin-grid .pin-btn");
+  btns.forEach(b => {
+    b.disabled = disabled;
+    b.style.opacity = disabled ? "0.35" : "";
+  });
 }
 
 /* Save a PIN to Firebase */
@@ -2207,11 +2219,13 @@ const AI_KEY         = "MINDSPACE_AI_KEY"; // API key still local (never in Fire
 async function initPinScreen() {
   const savedRoom = localStorage.getItem(SAVED_ROOM_KEY);
   if (savedRoom) {
-    // Load this room's PINs from Firebase before allowing entry
+    // Disable keypad and show spinner while loading PINs from Firebase
+    setPinKeypadDisabled(true);
     const loadEl = document.getElementById("pin-loading");
     loadEl.classList.add("show");
     await loadPins(savedRoom);
     loadEl.classList.remove("show");
+    setPinKeypadDisabled(false);
     // Pre-populate state for returning user
     state.roomCode = savedRoom;
   } else {
