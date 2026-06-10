@@ -1466,10 +1466,10 @@ body::before {
   <div id="overlay-api" class="overlay gone">
     <div class="setup-icon">✨</div>
     <h2>AI Observer Setup</h2>
-    <p>Hey Player 1 — add your Gemini API key to enable the AI Observer. Stored only on this device. You can skip and add it later in Settings.</p>
+    <p>Add your Gemini API key to enable the AI Observer. Both old-format keys (AIzaSy…) and new 2026 auth keys (AQ.Ab8…) are supported. Stored only on this device.</p>
     <div class="field-group">
       <label>Gemini API Key</label>
-      <input type="password" class="field" id="api-key-input" placeholder="AIzaSy…" autocomplete="off"/>
+      <input type="password" class="field" id="api-key-input" placeholder="AIzaSy… or AQ.Ab8…" autocomplete="off"/>
     </div>
     <button class="btn-primary" onclick="App.saveApiKey()">Activate AI Observer ✨</button>
     <button class="btn-ghost" onclick="App.skipApiKey()">Skip — set it later in Settings</button>
@@ -2088,10 +2088,10 @@ body::before {
   <div id="ai-no-key-notice">
     <div class="notice-icon">✦</div>
     <h3>AI Observer Setup</h3>
-    <p>Enter your Gemini API key to activate the silent AI presence. Stored only on this device, never shared.</p>
+    <p>Enter your Gemini API key. Both old-format keys (AIzaSy…) and new 2026 auth keys (AQ.Ab8…) are fully supported. Stored only on this device, never shared.</p>
     <div class="notice-input-wrap field-group">
       <label>Gemini API Key</label>
-      <input type="password" class="field" id="ai-notice-key-input" placeholder="AIzaSy…" autocomplete="off"/>
+      <input type="password" class="field" id="ai-notice-key-input" placeholder="AIzaSy… or AQ.Ab8…" autocomplete="off"/>
     </div>
     <button class="btn-primary" style="max-width:300px;" onclick="Chat.saveKeyFromNotice()">Activate ✦</button>
     <button class="btn-ghost" style="max-width:300px;" onclick="Chat.dismissNoKey()">Not now</button>
@@ -2502,10 +2502,16 @@ function checkHomePresence() {
 window.App = {
 
   saveApiKey() {
-    const key = document.getElementById("api-key-input").value.trim();
-    if (!key) return;
-    localStorage.setItem(AI_KEY, key);
+    const raw = document.getElementById("api-key-input").value.trim();
+    if (!raw) return;
+    // Validate basic format: must start with AIza or AQ.
+    if (!raw.startsWith("AIza") && !raw.startsWith("AQ.")) {
+      this.showToast("That doesn't look right — key should start with AIza or AQ. 🔑");
+      return;
+    }
+    localStorage.setItem(AI_KEY, raw);
     document.getElementById("overlay-api").classList.add("gone");
+    this.showToast("AI Observer activated ✨");
     afterSetup();
   },
 
@@ -4114,7 +4120,17 @@ ${asker}: "${question || "Just checking in."}"`;
 
   /* ── CALL GEMINI ── */
   async _callGemini(apiKey, prompt) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    // Detect key type:
+    //   Old standard keys  → start with "AIza" → pass as ?key= query param
+    //   New auth keys (2026+) → start with "AQ." → pass as x-goog-api-key header
+    const isAuthKey = apiKey.startsWith("AQ.");
+    const url = isAuthKey
+      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent`
+      : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const headers = { "Content-Type": "application/json" };
+    if (isAuthKey) headers["x-goog-api-key"] = apiKey;
+
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.85, maxOutputTokens: 180 },
@@ -4124,7 +4140,7 @@ ${asker}: "${question || "Just checking in."}"`;
     try {
       res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
       });
     } catch (networkErr) {
@@ -4137,9 +4153,10 @@ ${asker}: "${question || "Just checking in."}"`;
       const status  = res.status;
 
       if (status === 400) throw { code: "BAD_KEY",   msg: "Invalid API key (400). Check the key in Settings.", detail: apiMsg };
-      if (status === 403) throw { code: "FORBIDDEN",  msg: "API key not authorised (403). Enable Gemini API in Google Cloud.", detail: apiMsg };
-      if (status === 429) throw { code: "QUOTA",      msg: "API quota reached (429). Daily limit hit — try again tomorrow or use a new key.", detail: apiMsg };
-      if (status === 503) throw { code: "OVERLOADED", msg: "Gemini servers overloaded (503). Try again in a minute.", detail: apiMsg };
+      if (status === 401) throw { code: "UNAUTH",    msg: "API key rejected (401). If your key starts with AQ. it is a new auth key — the app now supports these automatically. Double-check you copied the full key.", detail: apiMsg };
+      if (status === 403) throw { code: "FORBIDDEN", msg: "API key not authorised (403). Make sure the Gemini API is enabled in your Google Cloud project.", detail: apiMsg };
+      if (status === 429) throw { code: "QUOTA",     msg: "API quota reached (429). Daily limit hit — try again tomorrow or use a new key.", detail: apiMsg };
+      if (status === 503) throw { code: "OVERLOADED",msg: "Gemini servers overloaded (503). Try again in a minute.", detail: apiMsg };
       throw { code: `HTTP_${status}`, msg: `Gemini error ${status}.`, detail: apiMsg };
     }
 
@@ -4281,6 +4298,10 @@ ${asker}: "${question || "Just checking in."}"`;
     }
     const key = document.getElementById("ai-notice-key-input").value.trim();
     if (!key) return;
+    if (!key.startsWith("AIza") && !key.startsWith("AQ.")) {
+      App.showToast("Key should start with AIza or AQ. 🔑");
+      return;
+    }
     localStorage.setItem("MINDSPACE_AI_KEY", key);
     document.getElementById("ai-no-key-notice").classList.remove("show");
     App.showToast("AI Observer activated ✦");
