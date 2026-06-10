@@ -1368,6 +1368,44 @@ body::before {
 .chat-hint-pill.lav { border-color: rgba(155,142,196,0.25); color: var(--lav); }
 .chat-hint-pill.rose { border-color: rgba(201,107,122,0.25); color: var(--rose); }
 
+/* ── LETTER HUNT ── */
+.game-card.lhunt::before { background: radial-gradient(circle at right, rgba(201,160,80,0.12), transparent 70%); }
+.game-card.lhunt .game-card-icon { background: var(--gold-glow); border: 1px solid rgba(201,160,80,0.2); }
+
+.lhunt-tile {
+  width: 36px; height: 42px; border-radius: var(--r-sm);
+  background: var(--surface-3); border: 1.5px solid var(--border-2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace; font-size: 1rem; font-weight: 600;
+  text-transform: uppercase; color: var(--text-3);
+  transition: all 0.3s var(--ease-spring);
+  position: relative;
+}
+.lhunt-tile.revealed {
+  background: var(--surface-2); border-color: var(--gold);
+  color: var(--gold); box-shadow: 0 0 10px var(--gold-glow);
+}
+.lhunt-tile.blank {
+  letter-spacing: 0; color: transparent;
+}
+.lhunt-tile.blank::after {
+  content: ''; position: absolute; bottom: 6px; left: 4px; right: 4px;
+  height: 2px; background: var(--border-2); border-radius: 1px;
+}
+
+.lhunt-alpha-btn {
+  width: 100%; aspect-ratio: 1; border-radius: var(--r-sm);
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); font-family: 'DM Mono', monospace;
+  font-size: 0.85rem; font-weight: 500; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; text-transform: uppercase;
+}
+.lhunt-alpha-btn:active { transform: scale(0.9); }
+.lhunt-alpha-btn.hit  { background: rgba(78,203,141,0.15); border-color: var(--online); color: var(--online); cursor: default; }
+.lhunt-alpha-btn.miss { background: var(--surface-3); border-color: transparent; color: var(--text-3); opacity: 0.4; cursor: default; pointer-events:none; }
+.lhunt-alpha-btn.used { pointer-events: none; }
+
 /* No API key notice */
 #ai-no-key-notice {
   position: fixed; inset: 0; z-index: 9800;
@@ -1428,13 +1466,13 @@ body::before {
   <div id="overlay-api" class="overlay gone">
     <div class="setup-icon">✨</div>
     <h2>AI Observer Setup</h2>
-    <p>Enter your Gemini API key to enable the silent AI presence. This is stored only on your device.</p>
+    <p>Hey Player 1 — add your Gemini API key to enable the AI Observer. Stored only on this device. You can skip and add it later in Settings.</p>
     <div class="field-group">
       <label>Gemini API Key</label>
       <input type="password" class="field" id="api-key-input" placeholder="AIzaSy…" autocomplete="off"/>
     </div>
     <button class="btn-primary" onclick="App.saveApiKey()">Activate AI Observer ✨</button>
-    <button class="btn-ghost" onclick="App.skipApiKey()">Skip for now</button>
+    <button class="btn-ghost" onclick="App.skipApiKey()">Skip — set it later in Settings</button>
   </div>
 
   <!-- ════════════════════════════════════════
@@ -1559,7 +1597,7 @@ body::before {
       </div>
 
       <div class="settings-section-label">AI Engine</div>
-      <div class="settings-item" onclick="App.goToChangeApiGuarded()">
+      <div class="settings-item" id="settings-api-item" onclick="App.goToChangeApiGuarded()">
         <div class="settings-item-left">
           <div class="settings-item-icon gold">🔑</div>
           <div class="settings-item-text">
@@ -1568,6 +1606,15 @@ body::before {
           </div>
         </div>
         <span class="settings-item-arrow">›</span>
+      </div>
+      <div class="settings-item-static" id="settings-api-p2-notice" style="display:none;">
+        <div class="settings-item-left">
+          <div class="settings-item-icon gold" style="opacity:0.4;">🔑</div>
+          <div class="settings-item-text">
+            <div class="label" style="opacity:0.5;">Gemini API Key</div>
+            <div class="sub">Only Player 1 can manage the AI key</div>
+          </div>
+        </div>
       </div>
 
       <div class="settings-section-label">App</div>
@@ -1676,6 +1723,14 @@ body::before {
         <div class="game-card-info">
           <div class="game-card-title">Truth or Dare</div>
           <div class="game-card-desc">Take turns — confess your truth or accept the dare.</div>
+        </div>
+        <div class="game-card-arrow">›</div>
+      </div>
+      <div class="game-card lhunt" onclick="Games.openLetterHunt()">
+        <div class="game-card-icon">🔠</div>
+        <div class="game-card-info">
+          <div class="game-card-title">Letter Hunt</div>
+          <div class="game-card-desc">Pick a secret word. Take turns guessing letters in each other's word. First to crack it wins.</div>
         </div>
         <div class="game-card-arrow">›</div>
       </div>
@@ -2084,6 +2139,69 @@ body::before {
     </div>
   </div>
 
+  <!-- ════════════════════════════════════════
+       LETTER HUNT SCREEN
+  ════════════════════════════════════════ -->
+  <div id="screen-lhunt" class="screen game-screen">
+    <div class="game-topbar">
+      <button class="back-btn" onclick="Games.leaveGame('screen-games')">←</button>
+      <h2>Letter Hunt 🔠</h2>
+      <div class="game-score-chip" id="lhunt-score">0 — 0</div>
+    </div>
+    <div class="game-body" style="width:100%;padding:20px 24px;">
+
+      <!-- Phase: word entry -->
+      <div id="lhunt-setup" style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:16px;">
+        <div style="text-align:center;">
+          <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--gold);margin-bottom:8px;">Your Secret Word</div>
+          <div style="font-size:0.82rem;color:var(--text-3);line-height:1.5;">Choose a word (3–10 letters). Your partner will try to guess its letters.</div>
+        </div>
+        <input type="text" class="field" id="lhunt-word-input"
+          placeholder="your secret word…"
+          maxlength="10" autocomplete="off" autocorrect="off"
+          autocapitalize="none" spellcheck="false"
+          style="font-family:'DM Mono',monospace;font-size:1.1rem;text-align:center;letter-spacing:0.15em;text-transform:lowercase;"
+          oninput="this.value=this.value.replace(/[^a-zA-Z]/g,'').toLowerCase()"/>
+        <button class="btn-primary" id="lhunt-seal-btn" onclick="Games.lhuntSeal()">Seal My Word 🔒</button>
+        <div id="lhunt-setup-status" style="text-align:center;font-size:0.8rem;color:var(--text-3);min-height:20px;"></div>
+      </div>
+
+      <!-- Phase: playing -->
+      <div id="lhunt-play" style="width:100%;max-width:360px;flex-direction:column;gap:18px;display:none;">
+
+        <!-- Their word — letters to crack -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;">
+          <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--lav);margin-bottom:10px;">Partner's Word</div>
+          <div id="lhunt-their-tiles" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;"></div>
+          <div id="lhunt-their-found" style="margin-top:10px;font-size:0.72rem;color:var(--text-3);text-align:center;"></div>
+        </div>
+
+        <!-- My word — what they've guessed -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;">
+          <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.14em;color:var(--rose);margin-bottom:10px;">Your Word</div>
+          <div id="lhunt-my-tiles" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;"></div>
+          <div id="lhunt-my-found" style="margin-top:10px;font-size:0.72rem;color:var(--text-3);text-align:center;"></div>
+        </div>
+
+        <!-- Guessed letters log -->
+        <div id="lhunt-log" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 16px;max-height:100px;overflow-y:auto;">
+          <div style="font-size:0.62rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-3);margin-bottom:6px;">Guesses</div>
+          <div id="lhunt-log-entries" style="font-size:0.78rem;color:var(--text-2);line-height:1.8;"></div>
+        </div>
+
+        <!-- Turn status + letter input -->
+        <div id="lhunt-turn-area" style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+          <div id="lhunt-turn-status" style="font-size:0.85rem;color:var(--text-3);text-align:center;min-height:22px;"></div>
+          <div id="lhunt-guess-wrap" style="width:100%;flex-direction:column;align-items:center;gap:10px;display:none;">
+            <div style="font-size:0.7rem;color:var(--gold);text-transform:uppercase;letter-spacing:0.12em;">Pick a letter</div>
+            <div id="lhunt-alpha-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:7px;width:100%;max-width:300px;"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
 </div><!-- /app -->
 
 <!-- ════════════════════════════════════════════════════
@@ -2159,11 +2277,26 @@ async function savePin(roomCode, who, val) {
 const state = {
   who: null,        // "p1" | "p2" — set after PIN verified
   myName: "",
+  partnerName: "",  // updated from Firebase presence in real-time
   roomCode: null,
   partnerOnline: false,
   presenceRef: null,
   listeners: [],
 };
+
+/* ── FIREBASE name helpers ── */
+async function saveNameToFirebase(roomCode, who, name) {
+  try {
+    await update(ref(db, `rooms/${roomCode}/playerNames`), { [who]: name });
+  } catch(e) { /* fallback: localStorage already saved */ }
+}
+
+async function loadNameFromFirebase(roomCode, who) {
+  try {
+    const snap = await get(ref(db, `rooms/${roomCode}/playerNames/${who}`));
+    return snap.val() || null;
+  } catch(e) { return null; }
+}
 
 /* ══════════════════════════════════════════
    PIN LOCK SYSTEM
@@ -2284,26 +2417,8 @@ function handleMainPin(key) {
   const p1 = cachedPins.p1;
   const p2 = cachedPins.p2;
 
-  // Live identity hint
-  if (pinBuffer.length > 0) {
-    if (p1.startsWith(pinBuffer)) {
-      labelEl.textContent = "Player 1 PIN";
-      labelEl.className = "pin-identity-label p1";
-      updateDots("pin-dots", pinBuffer.length, false);
-    } else if (p2.startsWith(pinBuffer)) {
-      labelEl.textContent = "Player 2 PIN";
-      labelEl.className = "pin-identity-label p2";
-      updateDots("pin-dots", pinBuffer.length, true);
-    } else {
-      labelEl.textContent = "Enter your PIN";
-      labelEl.className = "pin-identity-label";
-      updateDots("pin-dots", pinBuffer.length, false);
-    }
-  } else {
-    labelEl.textContent = "Enter your PIN";
-    labelEl.className = "pin-identity-label";
-    updateDots("pin-dots", 0);
-  }
+  // Update dots only — no identity hint (would reveal which PIN is being entered)
+  updateDots("pin-dots", pinBuffer.length, false);
 
   if (pinBuffer.length === 4) {
     if (pinBuffer === p1) {
@@ -2336,29 +2451,37 @@ initPinScreen();
 
 /* ── API KEY CHECK ── */
 function checkApiKey() {
+  // P2 never manages the API key — skip straight to the app
+  if (state.who !== "p1") { afterSetup(); return; }
   const key = localStorage.getItem(AI_KEY);
   if (!key) {
+    // Show setup overlay only for P1 on first ever use
     document.getElementById("overlay-api").classList.remove("gone");
   } else {
     afterSetup();
   }
 }
 
-function afterSetup() {
-  // If we have a room and a cached name, go straight to hub
-  const cachedName = localStorage.getItem(SAVED_NAME_KEY);
-  if (state.roomCode && cachedName) {
-    state.myName = cachedName;
-    App._autoEnterHub();
-  } else {
-    // First visit or no cached name — show name entry
+async function afterSetup() {
+  // If we have a room, try to load name from Firebase first (cross-device sync)
+  if (state.roomCode) {
+    const fbName = await loadNameFromFirebase(state.roomCode, state.who);
+    const cachedName = fbName || localStorage.getItem(SAVED_NAME_KEY);
     if (cachedName) {
-      const nameEl = document.getElementById("input-name");
-      if (nameEl) nameEl.value = cachedName;
+      state.myName = cachedName;
+      localStorage.setItem(SAVED_NAME_KEY, cachedName); // keep local in sync
+      App._autoEnterHub();
+      return;
     }
-    App.showScreen("screen-home");
-    checkHomePresence();
   }
+  // No name yet — show name entry screen
+  const cachedName = localStorage.getItem(SAVED_NAME_KEY);
+  if (cachedName) {
+    const nameEl = document.getElementById("input-name");
+    if (nameEl) nameEl.value = cachedName;
+  }
+  App.showScreen("screen-home");
+  checkHomePresence();
 }
 
 /* ── HOME PRESENCE ── */
@@ -2433,7 +2556,8 @@ window.App = {
       await set(ref(db, `rooms/${code}/pins`), { p1: cachedPins.p1, p2: cachedPins.p2 });
     }
 
-    // Update name and come online
+    // Save name to Firebase (primary store) + update presence
+    await saveNameToFirebase(code, who, name);
     await update(metaRef, { [`${who}Name`]: name });
     state.presenceRef = ref(db, `rooms/${code}/presence/${who}`);
     await set(state.presenceRef, { online: true, name, lastSeen: Date.now() });
@@ -2458,9 +2582,18 @@ window.App = {
     document.getElementById("spc-name").textContent = state.myName;
     document.getElementById("spc-meta").textContent = (state.who === "p1" ? "Player 1" : "Player 2");
     document.getElementById("spc-room-code").textContent = state.who === "p1" ? "P1" : "P2";
-    // Show API key status
-    const apiSub = document.getElementById("settings-api-sub");
-    if (apiSub) apiSub.textContent = localStorage.getItem(AI_KEY) ? "Key saved on this device ✓" : "No key saved";
+    // Show API key status (P1 only)
+    const apiItem   = document.getElementById("settings-api-item");
+    const apiNotice = document.getElementById("settings-api-p2-notice");
+    const apiSub    = document.getElementById("settings-api-sub");
+    if (state.who === "p1") {
+      if (apiItem)   apiItem.style.display   = "";
+      if (apiNotice) apiNotice.style.display  = "none";
+      if (apiSub)    apiSub.textContent = localStorage.getItem(AI_KEY) ? "Key saved on this device ✓" : "No key saved — tap to add";
+    } else {
+      if (apiItem)   apiItem.style.display   = "none";
+      if (apiNotice) apiNotice.style.display  = "";
+    }
     // Install URL
     const urlEl = document.getElementById("install-url");
     if (urlEl) urlEl.textContent = window.location.href.split("?")[0];
@@ -2486,6 +2619,7 @@ window.App = {
       const gridEl   = document.getElementById("hub-nav-grid");
 
       statusEl.className = `hub-partner-status${isOnline ? " online" : ""}`;
+      state.partnerName = partnerName; // always keep in sync
       labelEl.textContent = isOnline ? `${partnerName} is here 💗` : "Partner offline";
 
       // BUG FIX S5: also update chat partner label
@@ -2576,12 +2710,13 @@ window.App = {
     if (!newName) { this.showToast("Name can't be empty 😊"); return; }
     state.myName = newName;
     localStorage.setItem(SAVED_NAME_KEY, newName);
-    // Update Firebase presence so partner sees new name immediately
+    // Save to Firebase (primary) — both presence and playerNames node
+    if (state.roomCode) {
+      await saveNameToFirebase(state.roomCode, state.who, newName);
+      await update(ref(db, `rooms/${state.roomCode}/meta`), { [`${state.who}Name`]: newName });
+    }
     if (state.presenceRef) {
       await update(state.presenceRef, { name: newName, lastSeen: Date.now() });
-    }
-    if (state.roomCode) {
-      await update(ref(db, `rooms/${state.roomCode}/meta`), { [`${state.who}Name`]: newName });
     }
     // Update hub UI
     document.getElementById("hub-name").textContent = newName;
@@ -2592,8 +2727,12 @@ window.App = {
     this.showToast(`Name updated to "${newName}" 💗`);
   },
 
-  /* ── API KEY PIN GATE ── */
+  /* ── API KEY PIN GATE (P1 only) ── */
   goToChangeApiGuarded() {
+    if (state.who !== "p1") {
+      this.showToast("Only Player 1 can manage the AI key 🔑");
+      return;
+    }
     // Show PIN verify overlay; on success call goToChangeApi
     this._pinVerifyCallback = () => this.goToChangeApi();
     _pinVerifyBuffer = "";
@@ -2628,10 +2767,11 @@ window.App = {
     });
   },
   clearChatCache() {
-    if (confirm("This will sign you out. Your data in Firebase is safe. Continue?")) {
+    if (confirm("This will sign you out on this device. Your name and data in Firebase are safe. Continue?")) {
       localStorage.removeItem("MINDSPACE_ROOM_KEY");
       localStorage.removeItem(SAVED_NAME_KEY);
-      this.showToast("Signed out. Re-enter your name next visit.");
+      // Reload the page — cleanest way to re-lock behind PIN and reset all state
+      window.location.reload();
     }
   },
 };
@@ -2729,6 +2869,13 @@ function handlePinVerify(key) {
 
 buildKeyboard("pin-verify-grid", handlePinVerify);
 
+/* ── PARTNER NAME HELPER ──
+   Always use this instead of splitting hub-partner-label DOM text.
+   Falls back to "Partner" if name not yet loaded. */
+function getPartnerName() {
+  return state.partnerName || "Partner";
+}
+
 /* ══════════════════════════════════════════
    GAMES ENGINE
 ══════════════════════════════════════════ */
@@ -2787,7 +2934,7 @@ const TOD_DARES = [
 ];
 
 /* ── SCORE TRACKER ── */
-const scores = { ttt: { p1: 0, p2: 0 }, tele: { matches: 0, rounds: 0 } };
+const scores = { ttt: { p1: 0, p2: 0 }, tele: { matches: 0, rounds: 0 }, lhunt: { p1: 0, p2: 0 } };
 
 /* ── CONFETTI ── */
 function launchConfetti() {
@@ -2822,7 +2969,15 @@ function watchGame(path, cb) {
 window.Games = {
 
   leaveGame(dest) {
-    if (activeGameUnsub) { off(activeGameRef); activeGameUnsub = null; }
+    if (activeGameUnsub) { off(activeGameRef); activeGameUnsub = null; activeGameRef = null; }
+    // Reset Letter Hunt local state so stale word doesn't persist on rejoin
+    this._lhuntMyWord       = "";
+    this._lhuntTheirLen     = 0;
+    this._lhuntScoreCounted = false;
+    if (this._lhuntMyGuessed)   this._lhuntMyGuessed.clear();
+    if (this._lhuntMyMissed)    this._lhuntMyMissed.clear();
+    if (this._lhuntTheirGuessed) this._lhuntTheirGuessed.clear();
+    if (this._lhuntTheirMissed)  this._lhuntTheirMissed.clear();
     App.showScreen(dest);
   },
 
@@ -2938,7 +3093,7 @@ window.Games = {
     document.getElementById("tele-result-icon").textContent = matched ? "🎯" : "🌙";
     document.getElementById("tele-result-title").textContent = matched ? "Perfect Sync!" : "Not quite…";
 
-    const pName = (document.getElementById("hub-partner-label").textContent.split(" is ")[0]) || "Partner";
+    const pName = getPartnerName();
     document.getElementById("tele-result-words").innerHTML =
       `<strong>You:</strong> ${myAnswer} &nbsp;·&nbsp; <strong>${pName}:</strong> ${partnerAnswer}`;
 
@@ -2988,13 +3143,15 @@ window.Games = {
     this._tttScoreCounted = false; // reset guard each round
     document.getElementById("ttt-rematch-btn").style.display = "none";
 
-    // P1 always starts as X
-    update(ref(db, path), {
-      board: Array(9).fill(""),
-      turn: "p1",
-      winner: "",
-      phase: "playing",
-    });
+    // Only P1 resets the board to avoid P2 joining wiping an in-progress game
+    if (state.who === "p1") {
+      update(ref(db, path), {
+        board: Array(9).fill(""),
+        turn: "p1",
+        winner: "",
+        phase: "playing",
+      });
+    }
 
     watchGame(path, (snap) => {
       const d = snap.val();
@@ -3047,7 +3204,7 @@ window.Games = {
     });
 
     const statusEl = document.getElementById("ttt-status");
-    const pName = (document.getElementById("hub-partner-label").textContent.split(" is ")[0]) || "Partner";
+    const pName = getPartnerName();
 
     if (d.phase === "done") {
       document.getElementById("ttt-rematch-btn").style.display = "block";
@@ -3150,7 +3307,7 @@ window.Games = {
         titleEl.textContent = matched ? "You both think alike! 💕" : "You see it differently 🌙";
 
         const votesEl = document.getElementById("wyr-votes");
-        const pName   = (document.getElementById("hub-partner-label").textContent.split(" is ")[0]) || "Partner";
+        const pName   = getPartnerName();
         votesEl.innerHTML = `
           <div class="wyr-vote-chip ${matched ? "match" : "diff"}">You: ${myVote === "A" ? q.a : q.b}</div>
           <div class="wyr-vote-chip ${matched ? "match" : "diff"}">${pName}: ${partnerVote === "A" ? q.a : q.b}</div>
@@ -3192,7 +3349,7 @@ window.Games = {
     const code = state.roomCode;
     const path = `rooms/${code}/game/tod`;
     const myTurn = whoseTurn === state.who;
-    const pName  = (document.getElementById("hub-partner-label").textContent.split(" is ")[0]) || "Partner";
+    const pName  = getPartnerName();
 
     document.getElementById("tod-round").textContent = `Round ${round + 1}`;
     const chipEl = document.getElementById("tod-turn-chip");
@@ -3244,6 +3401,462 @@ window.Games = {
   async todDone() {
     const code = state.roomCode;
     await update(ref(db, `rooms/${code}/game/tod`), { done: true, phase: "done" });
+  },
+
+  /* ══════════════════════════
+     LETTER HUNT
+     Flow:
+       1. Both players enter a secret word and seal it
+       2. Once both sealed → playing phase starts
+       3. Players alternate turns guessing ONE letter in partner's word
+       4. Response: how many times that letter appears (0 = miss)
+       5. Tiles update: correct letters revealed in their positions
+          (but only count shown, not position — player must guess all to win)
+       6. When all letters of a word are correctly guessed → that player wins
+          both words revealed at end
+  ══════════════════════════ */
+  openLetterHunt() {
+    App.showScreen("screen-lhunt");
+    this._lhuntReset();
+    this._lhuntInit();
+  },
+
+  _lhuntReset() {
+    this._lhuntMyWord     = "";     // my secret word (plaintext, only on my device)
+    this._lhuntTheirLen   = 0;      // length of partner's word
+    this._lhuntMyGuessed  = new Set(); // letters partner has correctly found in MY word
+    this._lhuntMyMissed   = new Set(); // letters partner guessed that are NOT in my word
+    this._lhuntTheirGuessed = new Set(); // letters I've correctly found in THEIR word
+    this._lhuntTheirMissed  = new Set(); // letters I guessed that aren't in their word
+    this._lhuntTheirWord  = "";     // revealed at end
+    this._lhuntScoreCounted = false;
+    document.getElementById("lhunt-setup").style.display   = "flex";
+    document.getElementById("lhunt-play").style.display    = "none";
+    document.getElementById("lhunt-word-input").value      = "";
+    document.getElementById("lhunt-setup-status").textContent = "";
+    document.getElementById("lhunt-seal-btn").disabled     = false;
+    document.getElementById("lhunt-seal-btn").textContent  = "Seal My Word 🔒";
+  },
+
+  _lhuntInit() {
+    const code = state.roomCode;
+    const path = `rooms/${code}/game/lhunt`;
+
+    // Only P1 resets the game node — P2 joining won't wipe P1's sealed word
+    // Exception: if phase is already "done" (finished game), both can restart
+    if (state.who === "p1") {
+      set(ref(db, path), { phase: "setup", p1sealed: false, p2sealed: false });
+    }
+
+    watchGame(path, (snap) => {
+      const d = snap.val();
+      if (!d) {
+        // Node doesn't exist yet (P2 joined before P1 opened) — wait
+        return;
+      }
+      this._lhuntOnSnapshot(d);
+    });
+  },
+
+  _lhuntOnSnapshot(d) {
+    const who     = state.who;
+    const partner = who === "p1" ? "p2" : "p1";
+
+    // ── SETUP phase ──
+    if (d.phase === "setup") {
+      const mySealed      = !!d[`${who}sealed`];
+      const partnerSealed = !!d[`${partner}sealed`];
+
+      if (mySealed && !partnerSealed) {
+        document.getElementById("lhunt-setup-status").textContent = "Word sealed ✅  Waiting for partner…";
+        document.getElementById("lhunt-seal-btn").disabled = true;
+      } else if (mySealed && partnerSealed) {
+        // both sealed — move to playing
+        // P1 sets the play state to avoid race
+        if (who === "p1") {
+          const code = state.roomCode;
+          update(ref(db, `rooms/${code}/game/lhunt`), { phase: "playing", turn: "p1" });
+        }
+      }
+      return;
+    }
+
+    // ── PLAYING phase ──
+    if (d.phase === "playing" || d.phase === "done") {
+      // Transition UI once
+      const playEl = document.getElementById("lhunt-play");
+      if (playEl && (playEl.style.display === "none" || playEl.style.display === "")) {
+        document.getElementById("lhunt-setup").style.display = "none";
+        playEl.style.display  = "flex";
+        // Store their word length from Firebase
+        this._lhuntTheirLen = d[`${partner}len`] || 0;
+        this._lhuntRebuildTiles(d);
+        this._lhuntBuildAlpha();
+      }
+
+      // If there is a pending guess directed at us, process it
+      if (d.pendingGuess && d.pendingGuess.by === partner && this._lhuntMyWord) {
+        this._lhuntProcessPendingGuess(d);
+      }
+
+      this._lhuntSyncState(d);
+      return;
+    }
+
+  },
+
+  async lhuntSeal() {
+    const word = document.getElementById("lhunt-word-input").value.trim().toLowerCase();
+    if (word.length < 3) { App.showToast("Word must be at least 3 letters 🔠"); return; }
+    if (!/^[a-z]+$/.test(word)) { App.showToast("Letters only please!"); return; }
+
+    this._lhuntMyWord = word;
+    const who  = state.who;
+    const code = state.roomCode;
+
+    // Save: sealed flag + word length (not the word itself — that stays local)
+    await update(ref(db, `rooms/${code}/game/lhunt`), {
+      [`${who}sealed`]: true,
+      [`${who}len`]:    word.length,
+    });
+
+    document.getElementById("lhunt-seal-btn").disabled  = true;
+    document.getElementById("lhunt-seal-btn").textContent = "Word Sealed 🔒";
+    document.getElementById("lhunt-setup-status").textContent = "Waiting for partner to seal their word…";
+  },
+
+  _lhuntRebuildTiles(d) {
+    const who     = state.who;
+    const partner = who === "p1" ? "p2" : "p1";
+
+    // Their word tiles (blank squares, count = their word length)
+    const theirLen  = d[`${partner}len`] || this._lhuntTheirLen || 0;
+    const theirTiles = document.getElementById("lhunt-their-tiles");
+    if (theirTiles && theirTiles.children.length !== theirLen) {
+      theirTiles.innerHTML = "";
+      for (let i = 0; i < theirLen; i++) {
+        const t = document.createElement("div");
+        t.className = "lhunt-tile blank";
+        t.dataset.idx = i;
+        t.dataset.for = "their";
+        theirTiles.appendChild(t);
+      }
+    }
+
+    // My word tiles
+    const myLen   = this._lhuntMyWord.length || d[`${who}len`] || 0;
+    const myTiles = document.getElementById("lhunt-my-tiles");
+    if (myTiles && myTiles.children.length !== myLen) {
+      myTiles.innerHTML = "";
+      for (let i = 0; i < myLen; i++) {
+        const t = document.createElement("div");
+        t.className = "lhunt-tile blank";
+        t.dataset.idx = i;
+        t.dataset.for = "mine";
+        myTiles.appendChild(t);
+      }
+    }
+  },
+
+  _lhuntSyncState(d) {
+    const who     = state.who;
+    const partner = who === "p1" ? "p2" : "p1";
+
+    // Replay all guesses to rebuild tile + alpha state
+    const myGuesses      = d[`${who}guesses`]   || {};  // letters I guessed in their word
+    const partnerGuesses = d[`${partner}guesses`] || {}; // letters they guessed in my word
+
+    this._lhuntTheirGuessed.clear();
+    this._lhuntTheirMissed.clear();
+    this._lhuntMyGuessed.clear();
+    this._lhuntMyMissed.clear();
+
+    // Process my guesses against their word
+    Object.entries(myGuesses).forEach(([letter, result]) => {
+      if (result > 0) this._lhuntTheirGuessed.add(letter);
+      else            this._lhuntTheirMissed.add(letter);
+    });
+
+    // Process partner's guesses against my word
+    Object.entries(partnerGuesses).forEach(([letter, result]) => {
+      if (result > 0) this._lhuntMyGuessed.add(letter);
+      else            this._lhuntMyMissed.add(letter);
+    });
+
+    // Update their word tiles
+    const theirWord = d.phase === "done" ? (d[`${partner}word`] || "") : "";
+    this._lhuntTheirWord = theirWord;
+    const theirLen  = d[`${partner}len`] || 0;
+    const theirTiles = document.querySelectorAll("[data-for='their']");
+    theirTiles.forEach((tile, i) => {
+      if (theirWord) {
+        // End of game — reveal full word
+        tile.className = "lhunt-tile revealed";
+        tile.textContent = theirWord[i] || "";
+      } else {
+        // Show letters I've guessed correctly, blank the rest
+        // We know which letters are correct but not positions — show all instances
+        const guessedLetters = this._lhuntTheirGuessed;
+        // We don't know the actual word yet, so we can't show positions
+        // Instead show count summary below tiles
+        tile.className = "lhunt-tile blank";
+        tile.textContent = "";
+      }
+    });
+
+    // Update my word tiles — show what partner has guessed
+    const myWord   = this._lhuntMyWord;
+    const myTiles  = document.querySelectorAll("[data-for='mine']");
+    myTiles.forEach((tile, i) => {
+      const letter = myWord[i] || "";
+      if (letter && this._lhuntMyGuessed.has(letter)) {
+        tile.className = "lhunt-tile revealed";
+        tile.textContent = letter.toUpperCase();
+      } else {
+        tile.className = "lhunt-tile blank";
+        tile.textContent = "";
+      }
+    });
+
+    // Build found-letter summaries
+    const theirFoundEl = document.getElementById("lhunt-their-found");
+    if (theirFoundEl) {
+      if (this._lhuntTheirGuessed.size > 0) {
+        const hits  = [...this._lhuntTheirGuessed].map(l => l.toUpperCase()).join(" ");
+        const misses = [...this._lhuntTheirMissed].map(l => l.toUpperCase()).join(" ");
+        theirFoundEl.innerHTML = misses.length
+          ? `<span style="color:var(--online);">✓ ${hits}</span> &nbsp; <span style="color:var(--text-3);">✗ ${misses}</span>`
+          : `<span style="color:var(--online);">✓ ${hits}</span>`;
+      } else {
+        theirFoundEl.textContent = "No correct guesses yet";
+      }
+    }
+
+    const myFoundEl = document.getElementById("lhunt-my-found");
+    if (myFoundEl) {
+      if (this._lhuntMyGuessed.size > 0) {
+        const hits   = [...this._lhuntMyGuessed].map(l => l.toUpperCase()).join(" ");
+        const misses = [...this._lhuntMyMissed].map(l => l.toUpperCase()).join(" ");
+        myFoundEl.innerHTML = misses.length
+          ? `<span style="color:var(--online);">✓ ${hits}</span> &nbsp; <span style="color:var(--text-3);">✗ ${misses}</span>`
+          : `<span style="color:var(--online);">✓ ${hits}</span>`;
+      } else {
+        myFoundEl.textContent = "Partner hasn't guessed any letters yet";
+      }
+    }
+
+    // Rebuild guess log
+    this._lhuntRebuildLog(d, myGuesses, partnerGuesses);
+
+    // Update alpha grid
+    this._lhuntRefreshAlpha();
+
+    // Turn status
+    this._lhuntUpdateTurnUI(d);
+
+    // Check for win (done phase)
+    if (d.phase === "done" && !this._lhuntScoreCounted) {
+      this._lhuntScoreCounted = true;
+      this._lhuntShowResult(d);
+    }
+  },
+
+  _lhuntRebuildLog(d, myGuesses, partnerGuesses) {
+    const logEl = document.getElementById("lhunt-log-entries");
+    if (!logEl) return;
+
+    const pName = getPartnerName();
+
+    // Merge and sort by order key
+    const entries = [];
+    Object.entries(myGuesses || {}).forEach(([letter, count]) => {
+      entries.push({ by: "me",     letter, count });
+    });
+    Object.entries(partnerGuesses || {}).forEach(([letter, count]) => {
+      entries.push({ by: "them",   letter, count });
+    });
+
+    // Display (most recent last)
+    logEl.innerHTML = entries.map(e => {
+      const who  = e.by === "me" ? "You" : pName;
+      const col  = e.count > 0 ? "var(--online)" : "var(--rose)";
+      const msg  = e.count > 0
+        ? `${e.count}× in the word`
+        : "not in the word";
+      return `<span style="color:${col};">${who} → <strong>${e.letter.toUpperCase()}</strong>: ${msg}</span>`;
+    }).join("<br>");
+
+    // Auto-scroll log to bottom
+    const logContainer = document.getElementById("lhunt-log");
+    if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+  },
+
+  _lhuntBuildAlpha() {
+    const grid = document.getElementById("lhunt-alpha-grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    "abcdefghijklmnopqrstuvwxyz".split("").forEach(letter => {
+      const btn = document.createElement("button");
+      btn.className = "lhunt-alpha-btn";
+      btn.textContent = letter.toUpperCase();
+      btn.dataset.letter = letter;
+      btn.addEventListener("click", () => this.lhuntGuess(letter));
+      grid.appendChild(btn);
+    });
+  },
+
+  _lhuntRefreshAlpha() {
+    document.querySelectorAll(".lhunt-alpha-btn").forEach(btn => {
+      const l = btn.dataset.letter;
+      btn.classList.remove("hit", "miss", "used");
+      if (this._lhuntTheirGuessed.has(l)) { btn.classList.add("hit",  "used"); }
+      else if (this._lhuntTheirMissed.has(l))  { btn.classList.add("miss", "used"); }
+    });
+  },
+
+  _lhuntUpdateTurnUI(d) {
+    const who      = state.who;
+    const isMyTurn = d.turn === who;
+    const pName    = getPartnerName();
+    const statusEl = document.getElementById("lhunt-turn-status");
+    const guessWrap = document.getElementById("lhunt-guess-wrap");
+
+    if (d.phase === "done") {
+      if (statusEl) statusEl.textContent = "";
+      if (guessWrap) guessWrap.style.display = "none";
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = isMyTurn
+        ? "Your turn — pick a letter you think is in their word"
+        : `${pName}'s turn — sit tight…`;
+      statusEl.style.color = isMyTurn ? "var(--text-1)" : "var(--text-3)";
+    }
+    if (guessWrap) {
+      guessWrap.style.display = isMyTurn ? "flex" : "none";
+    }
+  },
+
+  async lhuntGuess(letter) {
+    const code    = state.roomCode;
+    const who     = state.who;
+    const partner = who === "p1" ? "p2" : "p1";
+    const path    = `rooms/${code}/game/lhunt`;
+
+    // Read current state to confirm it's still my turn
+    const snap = await get(ref(db, path));
+    const d    = snap.val();
+    if (!d || d.phase !== "playing") return;
+    if (d.turn !== who) { App.showToast("Not your turn!"); return; }
+
+    // Check if already guessed
+    const myGuesses = d[`${who}guesses`] || {};
+    if (letter in myGuesses) { App.showToast("Already guessed that letter!"); return; }
+
+    // Partner must be on this device for us to check — but they're NOT.
+    // The word lives only on the partner's device. We need Firebase to relay it.
+    // DESIGN: each player stores their own word ENCRYPTED under their key.
+    // When it's their turn to be guessed, the GUESSER sends the letter to Firebase,
+    // and the DEFENDER (who has the word) sees the new guess, computes the count,
+    // and writes back the result. We use a "pendingGuess" pattern:
+    //   guesser writes: pendingGuess: { letter, by: who }
+    //   defender picks it up, computes count, writes result back
+
+    await update(ref(db, path), {
+      pendingGuess: { letter, by: who },
+      turn: partner, // switch turn while defender processes the guess
+    });
+  },
+
+  // Called when the DEFENDER sees a pending guess for their word
+  async _lhuntProcessPendingGuess(d) {
+    const who     = state.who;
+    const partner = who === "p1" ? "p2" : "p1";
+    const code    = state.roomCode;
+    const path    = `rooms/${code}/game/lhunt`;
+    const pg      = d.pendingGuess;
+
+    // Only process if the guess is directed at US (partner is guessing our word)
+    if (!pg || pg.by !== partner) return;
+
+    const word   = this._lhuntMyWord;
+    if (!word) return; // word not set on this device — shouldn't happen
+
+    const letter = pg.letter;
+    const count  = word.split("").filter(c => c === letter).length;
+
+    // Check if partner now knows all letters in my word
+    const existingGuesses = d[`${partner}guesses`] || {};
+    const allGuesses = { ...existingGuesses, [letter]: count };
+    // Check if every unique letter in the word has been guessed with count > 0
+    const uniqueLetters = [...new Set(word.split(""))];
+    const allLettersFound = uniqueLetters.every(c => allGuesses[c] > 0);
+
+    const updates = {
+      [`${partner}guesses/${letter}`]: count,
+      pendingGuess: null,
+      turn: partner, // give turn back to the guesser after we process
+    };
+
+    if (allLettersFound) {
+      // Partner cracked our word — they win!
+      updates.phase    = "done";
+      updates.winner   = partner;
+      updates[`${who}word`] = word; // reveal our word now
+    } else {
+      // Always alternate turns — give turn to the original guesser (partner)
+      // who=defender just processed the guess; partner=guesser should go next
+      updates.turn = partner;
+    }
+
+    await update(ref(db, path), updates);
+  },
+
+  _lhuntShowResult(d) {
+    const who    = state.who;
+    const pName  = getPartnerName();
+    const won    = d.winner === who;
+    const myWord = this._lhuntMyWord;
+
+    // Reveal both words in tiles
+    const partner = who === "p1" ? "p2" : "p1";
+    const theirWordRevealed = d[`${partner}word`] || "";
+    const theirTiles = document.querySelectorAll("[data-for='their']");
+    theirTiles.forEach((tile, i) => {
+      tile.className  = "lhunt-tile revealed";
+      tile.textContent = (theirWordRevealed[i] || "").toUpperCase();
+    });
+    const myTiles = document.querySelectorAll("[data-for='mine']");
+    myTiles.forEach((tile, i) => {
+      tile.className  = "lhunt-tile revealed";
+      tile.textContent = (myWord[i] || "").toUpperCase();
+    });
+
+    // Score
+    if (!this._lhuntScoreCounted) {
+      this._lhuntScoreCounted = true;
+    }
+    if (won) { scores.lhunt[who]++; launchConfetti(); }
+
+    const scoreEl = document.getElementById("lhunt-score");
+    if (scoreEl) scoreEl.textContent = `${scores.lhunt.p1} — ${scores.lhunt.p2}`;
+
+    const turnEl = document.getElementById("lhunt-turn-status");
+    if (turnEl) {
+      turnEl.textContent = won ? `You cracked it! 🎉 Word was: ${theirWordRevealed.toUpperCase()}` : `${pName} cracked your word! Their word was: ${theirWordRevealed.toUpperCase()}`;
+      turnEl.style.color = won ? "var(--online)" : "var(--rose)";
+    }
+
+    // Show play-again button
+    setTimeout(() => {
+      Games.showResult(
+        won ? "🎉" : "🌙",
+        won ? "You cracked it!" : `${pName} cracked yours first`,
+        `Words: ${myWord.toUpperCase()} vs ${theirWordRevealed.toUpperCase()}`,
+        () => { Games.openLetterHunt(); }
+      );
+    }, 1500);
   },
 };
 
@@ -3433,7 +4046,9 @@ window.Chat = {
     try {
       aiText = await this._callGemini(apiKey, context);
     } catch (e) {
-      aiText = "Hmm, something went wrong on my end. Try again in a bit? 🌙";
+      this._hideThinking();
+      this._showAiError(e);
+      return; // don't push a generic error message — error is already surfaced
     }
 
     // 5. Remove thinking bubble
@@ -3454,41 +4069,47 @@ window.Chat = {
 
   /* ── BUILD AI CONTEXT ── */
   _buildAiContext(question, isPrivate) {
-    const partnerName = document.getElementById("chat-partner-label")
-      .textContent.replace(" is here 💗", "").replace("Partner offline", "Partner");
+    const partnerName = getPartnerName();
 
-    // Collect messages visible to this player (shared + their own private)
+    // Compile ALL visible messages into a clean Name: text block
+    // (compressing short/emoji-only messages keeps important context even with many messages)
     const visible = this._allMessages.filter(m => {
       if (!m.private) return true;
       return m.privateFor === state.who;
     });
 
-    // Last 30 messages as conversation history
-    const history = visible.slice(-30).map(m => {
-      const who = m.sender === "ai" ? "AI Observer"
-                : m.sender === state.who ? state.myName
-                : partnerName;
-      return `${who}: ${m.text}`;
-    }).join("\n");
+    // Group consecutive messages by the same sender to avoid repetitive name spam
+    const lines = [];
+    let lastSender = null;
+    visible.forEach(m => {
+      const name = m.sender === "ai"        ? "AI Observer"
+                 : m.sender === state.who   ? state.myName
+                 : partnerName;
+      const text = m.text || "";
+      if (name === lastSender) {
+        // Append to last line (same sender — compact it)
+        lines[lines.length - 1] += " | " + text;
+      } else {
+        lines.push(`${name}: ${text}`);
+        lastSender = name;
+      }
+    });
+    const history = lines.join("\n");
 
-    const names  = `${state.myName} (${state.who}) and ${partnerName}`;
+    const names  = `${state.myName} & ${partnerName}`;
     const asker  = state.myName;
     const scope  = isPrivate
-      ? `This is a PRIVATE message — only ${asker} can see your reply. Do not reveal its content to anyone else.`
-      : "This message is visible to both partners.";
+      ? `PRIVATE — only ${asker} sees this reply.`
+      : "Visible to both.";
 
-    return `You are the AI Observer of MindSpace — a private couples app for ${names}, a long-distance couple.
-
-Your personality: empathetic, witty, warm, and human-sounding. You feel like a wise friend who knows them both. You pick sides gently if needed to restore peace. Never robotic. Never clinical. You speak conversationally.
-
+    return `AI Observer for MindSpace — couples app for ${names}.
+Be warm, witty, real. 1–3 sentences max. Reference chat if helpful.
 ${scope}
 
-Recent conversation:
-${history || "(No messages yet — this is the start of your connection.)"}
+Full chat history:
+${history || "(empty)"}
 
-${asker} is asking you: "${question || "Just checking in."}"
-
-Respond naturally, as a close friend would. Keep it concise (1–3 sentences usually). You may reference what you've seen in the chat. Be real, not generic.`;
+${asker}: "${question || "Just checking in."}"`;
   },
 
   /* ── CALL GEMINI ── */
@@ -3496,26 +4117,69 @@ Respond naturally, as a close friend would. Keep it concise (1–3 sentences usu
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.85, maxOutputTokens: 300 },
+      generationConfig: { temperature: 0.85, maxOutputTokens: 180 },
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (networkErr) {
+      throw { code: "NETWORK", msg: "No internet connection or request blocked.", detail: networkErr.message };
+    }
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 400 || res.status === 403) {
-        throw new Error("bad_key");
-      }
-      throw new Error("api_error");
+      const errBody = await res.json().catch(() => ({}));
+      const apiMsg  = errBody?.error?.message || "";
+      const status  = res.status;
+
+      if (status === 400) throw { code: "BAD_KEY",   msg: "Invalid API key (400). Check the key in Settings.", detail: apiMsg };
+      if (status === 403) throw { code: "FORBIDDEN",  msg: "API key not authorised (403). Enable Gemini API in Google Cloud.", detail: apiMsg };
+      if (status === 429) throw { code: "QUOTA",      msg: "API quota reached (429). Daily limit hit — try again tomorrow or use a new key.", detail: apiMsg };
+      if (status === 503) throw { code: "OVERLOADED", msg: "Gemini servers overloaded (503). Try again in a minute.", detail: apiMsg };
+      throw { code: `HTTP_${status}`, msg: `Gemini error ${status}.`, detail: apiMsg };
     }
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // Check for safety block
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if (finishReason === "SAFETY") {
+      throw { code: "SAFETY", msg: "Gemini blocked this response (safety filter). Try rephrasing.", detail: "" };
+    }
+
     return text.trim() || "I'm thinking… but nothing came to me. Try again? 🌙";
+  },
+
+  /* ── AI ERROR DISPLAY ── */
+  _showAiError(err) {
+    const isP1 = state.who === "p1";
+    const msg  = err?.msg || "AI Observer ran into an issue.";
+    const code = err?.code || "UNKNOWN";
+    const detail = err?.detail ? ` (${err.detail.slice(0, 80)})` : "";
+
+    // Always show a friendly message to everyone
+    const friendlyMsg = isP1
+      ? `⚠️ AI Error [${code}]: ${msg}${detail}`
+      : "The AI Observer had a hiccup. Ask your partner to check the key in Settings.";
+
+    App.showToast(friendlyMsg, 6000);
+
+    // For P1: also push a visible error message into chat so it's not lost
+    if (isP1 && state.roomCode) {
+      push(ref(db, `rooms/${state.roomCode}/chat`), {
+        sender:     "ai",
+        senderName: "AI Observer",
+        text:       `⚠️ [${code}] ${msg}${detail}`,
+        timestamp:  Date.now(),
+        private:    true,
+        privateFor: state.who, // only P1 sees this error
+      }).catch(() => {});
+    }
   },
 
   /* ── THINKING BUBBLE ── */
@@ -3610,6 +4274,11 @@ Respond naturally, as a close friend would. Keep it concise (1–3 sentences usu
   },
 
   saveKeyFromNotice() {
+    if (state.who !== "p1") {
+      document.getElementById("ai-no-key-notice").classList.remove("show");
+      App.showToast("Ask Player 1 to add the AI key in Settings 🔑");
+      return;
+    }
     const key = document.getElementById("ai-notice-key-input").value.trim();
     if (!key) return;
     localStorage.setItem("MINDSPACE_AI_KEY", key);
@@ -3915,8 +4584,8 @@ window.Mood = {
   },
 
   _stopListening() {
-    if (this._moodRef && this._moodListener) {
-      off(this._moodRef, "value", this._moodListener);
+    if (this._moodRef) {
+      off(this._moodRef);
     }
     this._moodRef = null;
     this._moodListener = null;
@@ -4179,8 +4848,8 @@ window.Memories = {
   },
 
   _stopListening() {
-    if (this._memRef && this._memListener) {
-      off(this._memRef, "value", this._memListener);
+    if (this._memRef) {
+      off(this._memRef);
     }
     this._memListener = null;
     this._memRef = null;
