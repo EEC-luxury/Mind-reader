@@ -310,7 +310,8 @@ body::before {
 }
 .hub-settings-btn:active { background: var(--surface-3); }
 .hub-content { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 20px; }
-.room-banner {
+/* room-banner removed S5 redesign */
+._room-banner-dead {
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 18px 20px;
   display: flex; align-items: center; justify-content: space-between;
@@ -407,8 +408,6 @@ body::before {
 .settings-item-text .label { font-size: 0.9rem; font-weight: 500; color: var(--text-1); }
 .settings-item-text .sub   { font-size: 0.75rem; color: var(--text-3); margin-top: 2px; }
 .settings-item-arrow { color: var(--text-3); font-size: 1.2rem; }
-
-.settings-item-arrow { color: var(--text-3); font-size: 1.2rem; }
 /* Static (non-clickable) settings item */
 .settings-item-static {
   display: flex; align-items: center;
@@ -436,6 +435,26 @@ body::before {
 .spc-room { text-align: right; flex-shrink: 0; }
 .spc-room-label { font-size: 0.62rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; }
 .spc-room-code { font-family: 'DM Mono', monospace; font-size: 1.1rem; color: var(--gold); letter-spacing: 0.15em; }
+
+/* Rename Bottom Sheet */
+.bottom-sheet {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 900;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  padding: 12px 28px 40px; display: flex; flex-direction: column;
+  animation: slideUp 0.28s var(--ease-out);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.sheet-handle {
+  width: 36px; height: 4px; border-radius: 2px;
+  background: var(--border-2); margin: 0 auto 20px;
+}
+
+/* PIN-verify overlay uses existing .overlay styles; just needs .pin-grid inside */
+#overlay-pin-verify .pin-grid {
+  display: grid; grid-template-columns: repeat(3, 64px);
+  gap: 12px; margin-top: 20px; justify-content: center;
+}
 
 /* Install Guide */
 .install-os-block {
@@ -1419,7 +1438,7 @@ body::before {
   </div>
 
   <!-- ════════════════════════════════════════
-       HOME SCREEN
+       HOME SCREEN — name entry only (no room code)
   ════════════════════════════════════════ -->
   <div id="screen-home" class="screen active">
     <div class="home-header">
@@ -1431,17 +1450,14 @@ body::before {
       </div>
     </div>
     <div class="home-form">
-      <div class="field-group">
-        <label>Your name</label>
-        <input type="text" class="field" id="input-name" placeholder="What shall I call you?" maxlength="20" autocomplete="off"/>
+      <div style="width:100%;">
+        <div class="field-group">
+          <label>What shall I call you?</label>
+          <input type="text" class="field" id="input-name" placeholder="Your name…" maxlength="20" autocomplete="off"
+            onkeydown="if(event.key==='Enter')App.enterSpace()"/>
+        </div>
+        <button class="btn-primary" onclick="App.enterSpace()">Enter Your Space 💗</button>
       </div>
-      <button class="btn-primary" onclick="App.createRoom()">Create a Space ✦</button>
-      <div class="divider"><span>or join existing</span></div>
-      <div class="field-group">
-        <label>Space code</label>
-        <input type="text" class="field" id="input-code" placeholder="4-digit code" maxlength="4" inputmode="numeric" autocomplete="off"/>
-      </div>
-      <button class="btn-primary" style="background:linear-gradient(135deg,var(--lav),#7060a8);box-shadow:0 4px 20px rgba(155,142,196,0.3);" onclick="App.joinRoom()">Join the Space 💜</button>
     </div>
   </div>
 
@@ -1464,17 +1480,10 @@ body::before {
       <button class="hub-settings-btn" onclick="App.showScreen('screen-settings')">⚙️</button>
     </div>
     <div class="hub-content">
-      <div class="room-banner">
-        <div class="room-banner-info">
-          <div class="room-banner-label">Space Code</div>
-          <div class="room-banner-code" id="room-code-display">—</div>
-        </div>
-        <button class="copy-btn" onclick="App.copyRoomCode()">Copy</button>
-      </div>
       <div class="waiting-state" id="waiting-state">
         <div class="waiting-icon">🔮</div>
         <h3>Waiting for your partner…</h3>
-        <p>Share the space code above so they can join you here.</p>
+        <p>Your space is ready. Your partner will appear here once they sign in.</p>
       </div>
       <div id="hub-nav-grid" style="display:none;" class="hub-nav-grid">
         <div class="nav-tile games" onclick="App.showScreen('screen-games')">
@@ -1520,9 +1529,21 @@ body::before {
           <div class="spc-meta" id="spc-meta">—</div>
         </div>
         <div class="spc-room">
-          <div class="spc-room-label">Room</div>
-          <div class="spc-room-code" id="spc-room-code">—</div>
+          <div class="spc-room-label">Role</div>
+          <div class="spc-room-code" id="spc-room-code" style="font-size:0.85rem;letter-spacing:0.05em;">—</div>
         </div>
+      </div>
+
+      <div class="settings-section-label">Profile</div>
+      <div class="settings-item" onclick="App.openRename()">
+        <div class="settings-item-left">
+          <div class="settings-item-icon rose">✏️</div>
+          <div class="settings-item-text">
+            <div class="label">Rename Me</div>
+            <div class="sub" id="settings-name-sub">Change how your partner sees you</div>
+          </div>
+        </div>
+        <span class="settings-item-arrow">›</span>
       </div>
 
       <div class="settings-section-label">Security</div>
@@ -1538,12 +1559,12 @@ body::before {
       </div>
 
       <div class="settings-section-label">AI Engine</div>
-      <div class="settings-item" onclick="App.goToChangeApi()">
+      <div class="settings-item" onclick="App.goToChangeApiGuarded()">
         <div class="settings-item-left">
           <div class="settings-item-icon gold">🔑</div>
           <div class="settings-item-text">
             <div class="label">Update Gemini API Key</div>
-            <div class="sub" id="settings-api-sub">Stored on this device only</div>
+            <div class="sub" id="settings-api-sub">PIN required · Stored on this device only</div>
           </div>
         </div>
         <span class="settings-item-arrow">›</span>
@@ -2069,10 +2090,10 @@ body::before {
      FIREBASE + APP LOGIC
 ════════════════════════════════════════════════════ -->
 <script type="module">
-import { initializeApp }            from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import { initializeApp }            from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
 import { getDatabase, ref, set, get,
          update, onValue, off, push,
-         onDisconnect }             from "https://www.gstatic.com/firebasejs/10.14.0/firebase-database.js";
+         onDisconnect }             from "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js";
 
 /* ── FIREBASE CONFIGS ── */
 const firebaseConfig = {
@@ -2103,15 +2124,11 @@ const DEFAULT_PIN = { p1: "2026", p2: "1234" };
 let cachedPins  = { p1: null, p2: null };  // loaded from Firebase after room join
 let pinsLoaded  = false;
 
-/* Load pins from Firebase for a given room — 5s timeout fallback */
+/* Load pins from Firebase for a given room */
 async function loadPins(roomCode) {
-  const timeout = new Promise(resolve => setTimeout(() => resolve(null), 5000));
   try {
-    const result = await Promise.race([
-      get(ref(db, `rooms/${roomCode}/pins`)),
-      timeout
-    ]);
-    const data = (result && result.val()) ? result.val() : {};
+    const snap = await get(ref(db, `rooms/${roomCode}/pins`));
+    const data = snap.val() || {};
     cachedPins.p1 = data.p1 || DEFAULT_PIN.p1;
     cachedPins.p2 = data.p2 || DEFAULT_PIN.p2;
     pinsLoaded = true;
@@ -2122,18 +2139,20 @@ async function loadPins(roomCode) {
   }
 }
 
-function setPinKeypadDisabled(disabled) {
-  const btns = document.querySelectorAll("#pin-grid .pin-btn");
-  btns.forEach(b => {
-    b.disabled = disabled;
-    b.style.opacity = disabled ? "0.35" : "";
-  });
-}
-
-/* Save a PIN to Firebase */
+/* Save a PIN to Firebase
+   DESIGN: Room key is derived from DEFAULT pins and never changes when a user
+   updates their PIN. The room key is a stable identifier derived once at first
+   connection. We update the PIN value stored in Firebase but do NOT re-derive
+   the room key — that would break all existing data (chat, moods, memories). */
 async function savePin(roomCode, who, val) {
-  await update(ref(db, `rooms/${roomCode}/pins`), { [who]: val });
   cachedPins[who] = val;
+  // Only update this specific PIN in Firebase — room key stays the same
+  try {
+    await update(ref(db, `rooms/${roomCode}/pins`), { [who]: val });
+    App.showToast("PIN updated — synced everywhere! 🔐");
+  } catch(e) {
+    App.showToast("Could not save PIN. Check connection.");
+  }
 }
 
 /* ── APP STATE ── */
@@ -2141,7 +2160,6 @@ const state = {
   who: null,        // "p1" | "p2" — set after PIN verified
   myName: "",
   roomCode: null,
-  isHost: false,
   partnerOnline: false,
   presenceRef: null,
   listeners: [],
@@ -2213,27 +2231,42 @@ function updateDots(containerId, length, useLav = false) {
    This gives us: cross-device PIN sync (Firebase) + session-always-locked (no session storage).
 */
 
-const SAVED_ROOM_KEY = "MINDSPACE_ROOM";   // only store room code locally, never PINs
-const AI_KEY         = "MINDSPACE_AI_KEY"; // API key still local (never in Firebase)
+const SAVED_NAME_KEY = "MINDSPACE_NAME";   // cache last-used name locally
+const AI_KEY         = "MINDSPACE_AI_KEY"; // API key stored locally only
+
+/* ── AUTO ROOM KEY ──
+   The shared room is derived from the two PINs (sorted + joined).
+   Both partners use the same PINs → same room key → same Firebase node.
+   No room code UI needed. */
+function deriveRoomCode(p1pin, p2pin) {
+  const sorted = [p1pin, p2pin].sort();
+  return `ms_${sorted[0]}_${sorted[1]}`;
+}
 
 async function initPinScreen() {
-  const savedRoom = localStorage.getItem(SAVED_ROOM_KEY);
-  if (savedRoom) {
-    // Disable keypad and show spinner while loading PINs from Firebase
-    setPinKeypadDisabled(true);
-    const loadEl = document.getElementById("pin-loading");
-    loadEl.classList.add("show");
-    await loadPins(savedRoom);
-    loadEl.classList.remove("show");
-    setPinKeypadDisabled(false);
-    // Pre-populate state for returning user
-    state.roomCode = savedRoom;
+  // Load PINs from Firebase using the default room key first,
+  // then re-derive once we know the actual PINs (handles custom PINs).
+  const loadEl = document.getElementById("pin-loading");
+  const gridEl = document.getElementById("pin-grid");
+  loadEl.classList.add("show");
+  gridEl.style.opacity = "0.3";
+  gridEl.style.pointerEvents = "none";
+
+  // Try loading from the stored room (if any)
+  const storedRoom = localStorage.getItem("MINDSPACE_ROOM_KEY");
+  if (storedRoom) {
+    await loadPins(storedRoom);
+    state.roomCode = storedRoom;
   } else {
-    // No room yet — use defaults, user will create/join room after PIN
+    // First ever visit — use defaults, room will be created on first enter
     cachedPins.p1 = DEFAULT_PIN.p1;
     cachedPins.p2 = DEFAULT_PIN.p2;
     pinsLoaded = true;
   }
+
+  loadEl.classList.remove("show");
+  gridEl.style.opacity = "";
+  gridEl.style.pointerEvents = "";
 }
 
 function handleMainPin(key) {
@@ -2312,12 +2345,17 @@ function checkApiKey() {
 }
 
 function afterSetup() {
-  // If we already have a saved room, skip straight to rejoin flow
-  const savedRoom = localStorage.getItem(SAVED_ROOM_KEY);
-  if (savedRoom && state.roomCode === savedRoom) {
-    App.showScreen("screen-home");
-    checkHomePresence();
+  // If we have a room and a cached name, go straight to hub
+  const cachedName = localStorage.getItem(SAVED_NAME_KEY);
+  if (state.roomCode && cachedName) {
+    state.myName = cachedName;
+    App._autoEnterHub();
   } else {
+    // First visit or no cached name — show name entry
+    if (cachedName) {
+      const nameEl = document.getElementById("input-name");
+      if (nameEl) nameEl.value = cachedName;
+    }
     App.showScreen("screen-home");
     checkHomePresence();
   }
@@ -2333,12 +2371,6 @@ function checkHomePresence() {
     presEl.classList.add("online");
     presText.textContent = `Signed in as ${state.who === "p1" ? "Player 1 💗" : "Player 2 💜"}`;
   }, 600);
-
-  // Pre-fill name/room if returning
-  const savedRoom = localStorage.getItem(SAVED_ROOM_KEY);
-  if (savedRoom) {
-    document.getElementById("input-code").value = savedRoom;
-  }
 }
 
 /* ══════════════════════════════════════════
@@ -2371,66 +2403,38 @@ window.App = {
     setTimeout(() => t.classList.remove("show"), duration);
   },
 
-  copyRoomCode() {
-    if (!state.roomCode) return;
-    navigator.clipboard.writeText(state.roomCode).then(() => {
-      this.showToast(`Code ${state.roomCode} copied! Share with your partner 💌`);
-    }).catch(() => {
-      this.showToast(`Room code: ${state.roomCode}`);
-    });
-  },
+  copyRoomCode() { /* room codes removed in Season 5 redesign */ },
 
-  async createRoom() {
-    const name = document.getElementById("input-name").value.trim();
+  /* ── ENTER SPACE (replaces create/join/rejoin — no room code needed) ── */
+  async enterSpace() {
+    const nameEl = document.getElementById("input-name");
+    const name = (nameEl && nameEl.value.trim()) || state.myName;
     if (!name) { this.showToast("Please enter your name first 😊"); return; }
     state.myName = name;
-    state.isHost = true;
-
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    state.roomCode = code;
-
-    // Save room structure including PINs
-    await set(ref(db, `rooms/${code}`), {
-      meta: { createdAt: Date.now(), p1Name: name, p2Name: "", connected: false },
-      presence: {
-        p1: { online: true, name, lastSeen: Date.now() },
-        p2: { online: false, name: "", lastSeen: 0 },
-      },
-      pins: { p1: cachedPins.p1, p2: cachedPins.p2 },
-    });
-
-    // Save room code locally (not PINs)
-    localStorage.setItem(SAVED_ROOM_KEY, code);
-    cachedPins.p1 = cachedPins.p1;
-    cachedPins.p2 = cachedPins.p2;
-
-    state.presenceRef = ref(db, `rooms/${code}/presence/${state.who}`);
-    await set(state.presenceRef, { online: true, name, lastSeen: Date.now() });
-    onDisconnect(state.presenceRef).update({ online: false, lastSeen: Date.now() });
-
-    this._enterHub(code);
+    localStorage.setItem(SAVED_NAME_KEY, name);
+    await this._autoEnterHub();
   },
 
-  async joinRoom() {
-    const name = document.getElementById("input-name").value.trim();
-    const code = document.getElementById("input-code").value.trim();
-    if (!name) { this.showToast("Please enter your name first 😊"); return; }
-    if (!code || code.length !== 4) { this.showToast("Enter the 4-digit room code 🔢"); return; }
+  async _autoEnterHub() {
+    const name = state.myName;
+    const who  = state.who;
 
-    const snap = await get(ref(db, `rooms/${code}/meta`));
-    if (!snap.exists()) { this.showToast("Room not found. Check the code 🤔"); return; }
-
-    state.myName = name;
-    state.isHost = false;
+    // Derive room code from the two PINs — same result on both devices
+    const code = deriveRoomCode(cachedPins.p1, cachedPins.p2);
     state.roomCode = code;
+    localStorage.setItem("MINDSPACE_ROOM_KEY", code);
 
-    // Load this room's pins and save room code locally
-    await loadPins(code);
-    localStorage.setItem(SAVED_ROOM_KEY, code);
+    // Ensure room exists in Firebase (idempotent — safe to call every time)
+    const metaRef = ref(db, `rooms/${code}/meta`);
+    const metaSnap = await get(metaRef);
+    if (!metaSnap.exists()) {
+      await set(metaRef, { createdAt: Date.now(), connected: false });
+      // Save PINs once when room is first created
+      await set(ref(db, `rooms/${code}/pins`), { p1: cachedPins.p1, p2: cachedPins.p2 });
+    }
 
-    const who = state.who;
-    await update(ref(db, `rooms/${code}/meta`), { [`${who}Name`]: name, connected: true });
-
+    // Update name and come online
+    await update(metaRef, { [`${who}Name`]: name });
     state.presenceRef = ref(db, `rooms/${code}/presence/${who}`);
     await set(state.presenceRef, { online: true, name, lastSeen: Date.now() });
     onDisconnect(state.presenceRef).update({ online: false, lastSeen: Date.now() });
@@ -2442,10 +2446,10 @@ window.App = {
     document.getElementById("hub-avatar").textContent = state.myName.charAt(0).toUpperCase();
     document.getElementById("hub-avatar").className = `player-avatar ${state.who}`;
     document.getElementById("hub-name").textContent = state.myName;
-    document.getElementById("hub-role").textContent = (state.isHost ? "Host · " : "Guest · ") + state.who.toUpperCase();
-    document.getElementById("room-code-display").textContent = code;
+    document.getElementById("hub-role").textContent = state.who.toUpperCase();
     document.getElementById("settings-pin-sub").textContent =
       `You are ${state.who === "p1" ? "Player 1" : "Player 2"} — change only your own PIN`;
+    document.getElementById("settings-name-sub").textContent = `Currently: ${state.myName}`;
 
     // ── S5: Populate settings profile card ──
     const spcAvatar = document.getElementById("spc-avatar");
@@ -2453,7 +2457,7 @@ window.App = {
     spcAvatar.className = `spc-avatar ${state.who}`;
     document.getElementById("spc-name").textContent = state.myName;
     document.getElementById("spc-meta").textContent = (state.who === "p1" ? "Player 1" : "Player 2");
-    document.getElementById("spc-room-code").textContent = code;
+    document.getElementById("spc-room-code").textContent = state.who === "p1" ? "P1" : "P2";
     // Show API key status
     const apiSub = document.getElementById("settings-api-sub");
     if (apiSub) apiSub.textContent = localStorage.getItem(AI_KEY) ? "Key saved on this device ✓" : "No key saved";
@@ -2515,19 +2519,29 @@ window.App = {
   },
 
   leaveRoom() {
+    if (activeGameUnsub) { off(activeGameRef); activeGameUnsub = null; activeGameRef = null; }
     if (state.presenceRef) update(state.presenceRef, { online: false, lastSeen: Date.now() });
     state.listeners.forEach(l => off(l.ref));
     state.listeners.length = 0;
-    state.roomCode = null; state.myName = "";
+    state.roomCode = null; state.myName = ""; state.who = null;
     state.isHost = false; state.partnerOnline = false; state.presenceRef = null;
-    localStorage.removeItem(SAVED_ROOM_KEY);
-    cachedPins.p1 = DEFAULT_PIN.p1; cachedPins.p2 = DEFAULT_PIN.p2;
-    document.getElementById("input-name").value = "";
-    document.getElementById("input-code").value = "";
-    document.getElementById("chat-fab").style.display = "none";
+    localStorage.removeItem("MINDSPACE_ROOM_KEY");
+    localStorage.removeItem(SAVED_NAME_KEY);
+    cachedPins.p1 = null; cachedPins.p2 = null;
+    pinsLoaded = false; pinBuffer = "";
+    Mood._stopListening();
+    Memories._stopListening();
     Chat.stopListening();
-    checkHomePresence();
-    this.showScreen("screen-home");
+    document.getElementById("chat-fab").style.display = "none";
+    // FIX B16+B1: Re-lock behind PIN — fully reset and re-show the PIN overlay
+    updateDots("pin-dots", 0);
+    document.getElementById("pin-identity-label").textContent = "Enter your PIN";
+    document.getElementById("pin-identity-label").className = "pin-identity-label";
+    document.getElementById("pin-error").classList.remove("show");
+    document.getElementById("overlay-pin").classList.remove("hidden");
+    document.getElementById("overlay-pin").classList.remove("gone");
+    // Re-init pins (will show loading state, then unlock keyboard)
+    initPinScreen();
   },
 
   /* ── SETTINGS ── */
@@ -2540,6 +2554,58 @@ window.App = {
     document.getElementById("api-key-input").value = "";
     document.getElementById("overlay-api").classList.remove("gone");
     this.showToast("Enter your new API key 🔑");
+  },
+
+  /* ── RENAME ── */
+  openRename() {
+    const nameEl = document.getElementById("rename-input");
+    if (nameEl) nameEl.value = state.myName || "";
+    document.getElementById("rename-sheet").style.display = "flex";
+    document.getElementById("rename-backdrop").style.display = "block";
+    setTimeout(() => nameEl && nameEl.focus(), 80);
+  },
+
+  closeRename() {
+    document.getElementById("rename-sheet").style.display = "none";
+    document.getElementById("rename-backdrop").style.display = "none";
+  },
+
+  async saveRename() {
+    const nameEl = document.getElementById("rename-input");
+    const newName = nameEl ? nameEl.value.trim() : "";
+    if (!newName) { this.showToast("Name can't be empty 😊"); return; }
+    state.myName = newName;
+    localStorage.setItem(SAVED_NAME_KEY, newName);
+    // Update Firebase presence so partner sees new name immediately
+    if (state.presenceRef) {
+      await update(state.presenceRef, { name: newName, lastSeen: Date.now() });
+    }
+    if (state.roomCode) {
+      await update(ref(db, `rooms/${state.roomCode}/meta`), { [`${state.who}Name`]: newName });
+    }
+    // Update hub UI
+    document.getElementById("hub-name").textContent = newName;
+    document.getElementById("hub-avatar").textContent = newName.charAt(0).toUpperCase();
+    document.getElementById("spc-name").textContent = newName;
+    document.getElementById("settings-name-sub").textContent = `Currently: ${newName}`;
+    this.closeRename();
+    this.showToast(`Name updated to "${newName}" 💗`);
+  },
+
+  /* ── API KEY PIN GATE ── */
+  goToChangeApiGuarded() {
+    // Show PIN verify overlay; on success call goToChangeApi
+    this._pinVerifyCallback = () => this.goToChangeApi();
+    _pinVerifyBuffer = "";
+    updateDots("pin-verify-dots", 0);
+    document.getElementById("pin-verify-error").classList.remove("show");
+    document.getElementById("overlay-pin-verify").classList.remove("gone");
+  },
+
+  cancelPinVerify() {
+    document.getElementById("overlay-pin-verify").classList.add("gone");
+    _pinVerifyBuffer = "";
+    this._pinVerifyCallback = null;
   },
 
   /* ── S5: NEW METHODS ── */
@@ -2562,9 +2628,10 @@ window.App = {
     });
   },
   clearChatCache() {
-    if (confirm("This will clear your saved room code and you'll need to re-enter it next visit. Your data in Firebase is safe. Continue?")) {
-      localStorage.removeItem(SAVED_ROOM_KEY);
-      this.showToast("Cache cleared. Re-enter room code next visit.");
+    if (confirm("This will sign you out. Your data in Firebase is safe. Continue?")) {
+      localStorage.removeItem("MINDSPACE_ROOM_KEY");
+      localStorage.removeItem(SAVED_NAME_KEY);
+      this.showToast("Signed out. Re-enter your name next visit.");
     }
   },
 };
@@ -2624,6 +2691,43 @@ buildKeyboard("change-pin-grid", handleChangePinKey);
 document.getElementById("change-pin-back").addEventListener("click", () => {
   changePinStep = 0; App.showScreen("screen-settings");
 });
+
+/* ── PIN VERIFY KEYBOARD (for API key gate) ── */
+let _pinVerifyBuffer = "";
+
+function handlePinVerify(key) {
+  const errEl = document.getElementById("pin-verify-error");
+  if (key === "del") {
+    _pinVerifyBuffer = _pinVerifyBuffer.slice(0, -1);
+    updateDots("pin-verify-dots", _pinVerifyBuffer.length);
+    return;
+  }
+  if (_pinVerifyBuffer.length >= 4) return;
+  _pinVerifyBuffer += key;
+  updateDots("pin-verify-dots", _pinVerifyBuffer.length, state.who === "p2");
+
+  if (_pinVerifyBuffer.length === 4) {
+    if (_pinVerifyBuffer === cachedPins[state.who]) {
+      document.getElementById("overlay-pin-verify").classList.add("gone");
+      _pinVerifyBuffer = "";
+      const cb = App._pinVerifyCallback;
+      App._pinVerifyCallback = null;
+      if (cb) cb();
+    } else {
+      errEl.classList.add("show");
+      const overlay = document.getElementById("overlay-pin-verify");
+      overlay.classList.add("shake");
+      setTimeout(() => {
+        overlay.classList.remove("shake");
+        errEl.classList.remove("show");
+        _pinVerifyBuffer = "";
+        updateDots("pin-verify-dots", 0);
+      }, 500);
+    }
+  }
+}
+
+buildKeyboard("pin-verify-grid", handlePinVerify);
 
 /* ══════════════════════════════════════════
    GAMES ENGINE
@@ -2844,7 +2948,11 @@ window.Games = {
   },
 
   teleNext() {
-    // Clear game state and reload
+    // Only P1 drives round progression to avoid both-tap race condition
+    if (state.who !== "p1") {
+      App.showToast("Waiting for partner to start next round…");
+      return;
+    }
     const code = state.roomCode;
     set(ref(db, `rooms/${code}/game/telepathy`), null).then(() => {
       this._teleLoad();
@@ -2872,9 +2980,12 @@ window.Games = {
     }
   },
 
+  _tttScoreCounted: false,
+
   _tttInit() {
     const code = state.roomCode;
     const path = `rooms/${code}/game/ttt`;
+    this._tttScoreCounted = false; // reset guard each round
     document.getElementById("ttt-rematch-btn").style.display = "none";
 
     // P1 always starts as X
@@ -2944,9 +3055,12 @@ window.Games = {
         statusEl.textContent = "It's a draw! 🤝";
         statusEl.className = "ttt-status active";
       } else if (d.winner === state.who) {
-        scores.ttt[state.who]++;
-        document.getElementById("ttt-score").textContent = `${scores.ttt.p1} — ${scores.ttt.p2}`;
-        launchConfetti();
+        if (!this._tttScoreCounted) {
+          this._tttScoreCounted = true;
+          scores.ttt[state.who]++;
+          document.getElementById("ttt-score").textContent = `${scores.ttt.p1} — ${scores.ttt.p2}`;
+          launchConfetti();
+        }
         statusEl.textContent = "You win! 🎉";
         statusEl.className = "ttt-status active";
         // Highlight winning cells
@@ -2958,8 +3072,11 @@ window.Games = {
           }
         }
       } else {
-        scores.ttt[d.winner]++;
-        document.getElementById("ttt-score").textContent = `${scores.ttt.p1} — ${scores.ttt.p2}`;
+        if (!this._tttScoreCounted) {
+          this._tttScoreCounted = true;
+          scores.ttt[d.winner]++;
+          document.getElementById("ttt-score").textContent = `${scores.ttt.p1} — ${scores.ttt.p2}`;
+        }
         statusEl.textContent = `${pName} wins this one 😮`;
         statusEl.className = "ttt-status active";
       }
@@ -2976,6 +3093,11 @@ window.Games = {
   },
 
   tttRematch() {
+    // Only P1 drives rematch to avoid race condition (same pattern as teleNext/wyrNext)
+    if (state.who !== "p1") {
+      App.showToast("Waiting for partner to start rematch…");
+      return;
+    }
     this._tttBuildBoard();
     this._tttInit();
   },
@@ -2984,6 +3106,7 @@ window.Games = {
      WOULD YOU RATHER
   ══════════════════════════ */
   openWYR() {
+    this._wyrNextIdx = 0; // reset round counter each time game is opened
     App.showScreen("screen-wyr");
     this._wyrLoad(0);
   },
@@ -3049,6 +3172,11 @@ window.Games = {
   },
 
   wyrNext() {
+    // Only P1 drives round progression to avoid both-tap race condition
+    if (state.who !== "p1") {
+      App.showToast("Waiting for partner to start next round…");
+      return;
+    }
     this._wyrLoad(this._wyrNextIdx || 1);
   },
 
@@ -3110,8 +3238,6 @@ window.Games = {
     const code = state.roomCode;
     const pool = type === "truth" ? TOD_TRUTHS : TOD_DARES;
     const text = pool[Math.floor(Math.random() * pool.length)];
-    const snap = await get(ref(db, `rooms/${code}/game/tod`));
-    const d    = snap.val() || {};
     await update(ref(db, `rooms/${code}/game/tod`), { type, text, phase: "active" });
   },
 
@@ -3178,6 +3304,7 @@ window.Chat = {
 
   /* ── START / STOP LISTENING ── */
   startListening() {
+    if (this._msgRef) this.stopListening(); // tear down any existing listeners before re-attaching
     if (!state.roomCode) return;
     const code = state.roomCode;
     const partnerWho = state.who === "p1" ? "p2" : "p1";
@@ -3366,7 +3493,7 @@ Respond naturally, as a close friend would. Keep it concise (1–3 sentences usu
 
   /* ── CALL GEMINI ── */
   async _callGemini(apiKey, prompt) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.85, maxOutputTokens: 300 },
@@ -3696,6 +3823,9 @@ Respond naturally, as a close friend would. Keep it concise (1–3 sentences usu
 
   /* ── SWIPE TO CLOSE ── */
   _attachSwipe() {
+    // Only attach once — guard prevents stacking listeners on every Chat.open()
+    if (this._swipeAttached) return;
+    this._swipeAttached = true;
     const panel = document.getElementById("chat-panel");
     panel.addEventListener("touchstart", (e) => {
       this._touchStartX = e.touches[0].clientX;
@@ -3726,6 +3856,8 @@ Respond naturally, as a close friend would. Keep it concise (1–3 sentences usu
     if (isYesterday) return "Yesterday";
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   },
+}; // ← END window.Chat
+
 /* ══════════════════════════════════════════
    MOOD TRACKER — Season 4B
 ══════════════════════════════════════════ */
@@ -3766,6 +3898,7 @@ window.Mood = {
 
   /* ── FIREBASE ── */
   _startListening() {
+    if (this._moodRef) this._stopListening(); // guard against double-attach
     if (!state.roomCode) return;
     this._moodRef = ref(db, `rooms/${state.roomCode}/mood`);
     this._moodListener = onValue(this._moodRef, (snap) => {
@@ -3783,10 +3916,10 @@ window.Mood = {
 
   _stopListening() {
     if (this._moodRef && this._moodListener) {
-      off(this._moodRef);
-      this._moodRef = null;
-      this._moodListener = null;
+      off(this._moodRef, "value", this._moodListener);
     }
+    this._moodRef = null;
+    this._moodListener = null;
   },
 
   /* ── RENDER ── */
@@ -3863,9 +3996,9 @@ window.Mood = {
       col.className = "mood-chart-col";
       col.innerHTML = `
         <div class="mood-chart-bars">
-          <div class="mood-chart-bar p1" style="height:${myH}"
+          <div class="mood-chart-bar ${state.who}" style="height:${myH}"
             title="${myEntry ? myEntry.emoji + ' ' + myEntry.label : 'No entry'}"></div>
-          <div class="mood-chart-bar p2" style="height:${ptH}"
+          <div class="mood-chart-bar ${state.who === 'p1' ? 'p2' : 'p1'}" style="height:${ptH}"
             title="${ptEntry ? ptEntry.emoji + ' ' + ptEntry.label : 'No entry'}"></div>
         </div>
         <div class="mood-chart-day" style="${isToday ? 'color:var(--gold);font-weight:600;' : ''}">${dayName}</div>
@@ -4029,6 +4162,7 @@ window.Memories = {
 
   /* ── FIREBASE LISTENER ── */
   _startListening() {
+    if (this._memRef) this._stopListening(); // guard against double-attach
     if (!state.roomCode) return;
     this._memRef = ref(db2, `rooms/${state.roomCode}/memories`);
     this._memListener = onValue(this._memRef, (snap) => {
@@ -4046,10 +4180,10 @@ window.Memories = {
 
   _stopListening() {
     if (this._memRef && this._memListener) {
-      off(this._memRef);
-      this._memListener = null;
-      this._memRef = null;
+      off(this._memRef, "value", this._memListener);
     }
+    this._memListener = null;
+    this._memRef = null;
   },
 
   /* ── FILTER ── */
@@ -4276,65 +4410,54 @@ window.Memories = {
 (function registerSW() {
   if (!('serviceWorker' in navigator)) return;
 
-  const CACHE = 'mindspace-v5';
-  const swCode = `
-const CACHE = '${CACHE}';
-const SHELL = [self.location.pathname];
-
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())
-  );
-});
-
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', e => {
-  // Only handle same-origin GET requests
-  if (e.request.method !== 'GET') return;
-  if (!e.request.url.startsWith(self.location.origin)) return;
-  // Network-first for Firebase / Google Fonts / APIs
-  if (
-    e.request.url.includes('firebase') ||
-    e.request.url.includes('googleapis') ||
-    e.request.url.includes('gstatic') ||
-    e.request.url.includes('generativelanguage')
-  ) {
-    return; // let them go to network
-  }
-  // Cache-first for the app shell
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(resp => {
-      if (resp && resp.status === 200) {
-        const clone = resp.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-      }
-      return resp;
-    }))
-  );
-});
-`;
-
-  const blob = new Blob([swCode], { type: 'application/javascript' });
-  const swUrl = URL.createObjectURL(blob);
-
-  navigator.serviceWorker.register(swUrl, { scope: '/' })
+  // Blob-URL service workers are blocked by Chrome/Firefox/Safari (opaque origin).
+  // The correct fix is to deploy a standalone sw.js alongside index.html.
+  // We attempt to register ./sw.js here; if it doesn't exist the catch silently skips.
+  // To activate offline PWA: copy the sw.js from the /season5/ folder into your deploy.
+  navigator.serviceWorker.register('./sw.js', { scope: './' })
     .then(reg => {
       console.log('[MindSpace SW] registered, scope:', reg.scope);
     })
-    .catch(err => {
-      // Blob-URL SW registration may be blocked on some browsers (notably Safari).
-      // Silent fail — app works fine without it.
-      console.warn('[MindSpace SW] registration skipped:', err.message);
+    .catch(() => {
+      // sw.js not present in this deploy — PWA offline caching inactive.
+      // App works fully online without it.
     });
 })();
 
 </script>
+
+<!-- ════════════════════════════════════════
+     RENAME BOTTOM SHEET
+════════════════════════════════════════ -->
+<div id="rename-sheet" class="bottom-sheet" style="display:none;">
+  <div class="sheet-handle"></div>
+  <h3 style="font-family:'Cormorant Garamond',serif;font-weight:400;font-size:1.3rem;margin-bottom:4px;">Change Your Name</h3>
+  <p style="font-size:0.8rem;color:var(--text-3);margin-bottom:20px;">Your partner will see this name immediately.</p>
+  <div class="field-group">
+    <input type="text" class="field" id="rename-input" placeholder="Your new name…" maxlength="20" autocomplete="off"
+      onkeydown="if(event.key==='Enter')App.saveRename()"/>
+  </div>
+  <button class="btn-primary" onclick="App.saveRename()" style="margin-top:8px;">Save Name</button>
+  <button class="btn-ghost" onclick="App.closeRename()" style="margin-top:8px;">Cancel</button>
+</div>
+<div id="rename-backdrop" onclick="App.closeRename()"
+  style="display:none;position:fixed;inset:0;z-index:899;background:rgba(0,0,0,0.5);"></div>
+
+<!-- ════════════════════════════════════════
+     PIN-VERIFY OVERLAY (for API key gate)
+════════════════════════════════════════ -->
+<div id="overlay-pin-verify" class="overlay gone">
+  <div class="setup-icon">🔐</div>
+  <h2>Verify It's You</h2>
+  <p style="font-size:0.85rem;color:var(--text-3);margin-bottom:24px;">Enter your PIN to access the API key settings.</p>
+  <div class="pin-dots" id="pin-verify-dots">
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+    <div class="pin-dot"></div><div class="pin-dot"></div>
+  </div>
+  <div class="pin-error" id="pin-verify-error">Wrong PIN. Try again.</div>
+  <div class="pin-grid" id="pin-verify-grid"></div>
+  <button class="btn-ghost" onclick="App.cancelPinVerify()" style="margin-top:16px;">Cancel</button>
+</div>
+
 </body>
 </html>
