@@ -47,6 +47,85 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* ═══════════════════════════════════════════
+   SPLASH SCREEN
+═══════════════════════════════════════════ */
+#splash {
+  position: fixed; inset: 0; z-index: 99999;
+  background: #05030f;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 0;
+  transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1);
+}
+#splash.fade-out { opacity: 0; pointer-events: none; }
+#splash.gone     { display: none; }
+
+#splash-logo {
+  width: min(280px, 72vw);
+  height: auto;
+  opacity: 0;
+  transform: scale(0.82) translateY(18px);
+  animation: splashLogoIn 0.9s cubic-bezier(0.34,1.56,0.64,1) 0.18s forwards;
+}
+@keyframes splashLogoIn {
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+#splash-wordmark {
+  margin-top: 28px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 2rem; font-weight: 300; letter-spacing: 0.03em;
+  opacity: 0;
+  animation: splashWordIn 0.7s cubic-bezier(0.16,1,0.3,1) 0.72s forwards;
+}
+#splash-wordmark em {
+  font-style: normal;
+  background: linear-gradient(90deg, #e87090 0%, #c96b7a 40%, #9b8ec4 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+@keyframes splashWordIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+#splash-tagline {
+  margin-top: 10px;
+  font-size: 0.75rem; letter-spacing: 0.22em; text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  opacity: 0;
+  animation: splashWordIn 0.6s ease 1.05s forwards;
+}
+
+#splash-dots {
+  margin-top: 52px;
+  display: flex; gap: 8px; align-items: center;
+  opacity: 0;
+  animation: splashWordIn 0.5s ease 1.1s forwards;
+}
+.splash-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(155,142,196,0.4);
+  animation: splashPulse 1.2s ease-in-out infinite;
+}
+.splash-dot:nth-child(1) { animation-delay: 0s; }
+.splash-dot:nth-child(2) { animation-delay: 0.2s; }
+.splash-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes splashPulse {
+  0%,100% { transform: scale(1);   opacity: 0.4; }
+  50%      { transform: scale(1.5); opacity: 1; background: #c96b7a; }
+}
+
+#splash-status {
+  margin-top: 12px;
+  font-size: 0.72rem; color: rgba(255,255,255,0.25);
+  letter-spacing: 0.08em;
+  min-height: 1em;
+  opacity: 0;
+  animation: splashWordIn 0.5s ease 1.2s forwards;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--void); color: var(--text-1); overflow: hidden; -webkit-font-smoothing: antialiased; }
 
@@ -1435,6 +1514,24 @@ body::before {
 </style>
 </head>
 <body>
+
+<!-- ════════════════════════════════════════
+     SPLASH SCREEN
+════════════════════════════════════════ -->
+<div id="splash">
+  <!-- Logo image — place logo.png in the same folder as index.html -->
+  <img id="splash-logo" src="logo.png" alt="MindSpace" draggable="false"/>
+
+  <div id="splash-wordmark">Mind<em>Space</em></div>
+  <div id="splash-tagline">Our Space &nbsp;·&nbsp; Our Story</div>
+  <div id="splash-dots">
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+    <div class="splash-dot"></div>
+  </div>
+  <div id="splash-status">Connecting…</div>
+</div>
+
 <div id="app">
 
   <!-- ════════════════════════════════════════
@@ -1442,6 +1539,7 @@ body::before {
   ════════════════════════════════════════ -->
   <div id="overlay-pin" class="overlay">
     <div class="pin-brand">
+      <img src="logo.png" alt="MindSpace" style="width:64px;height:64px;margin-bottom:8px;object-fit:contain;" draggable="false"/>
       <div class="logo">Mind<em>Space</em></div>
       <div class="tagline">Your private space</div>
     </div>
@@ -2224,6 +2322,63 @@ const firebaseConfig = {
   databaseURL: "https://mind-game-e6579-default-rtdb.firebaseio.com"
 };
 const fireApp = initializeApp(firebaseConfig);
+
+/* ════════════════════════════════════════
+   SPLASH CONTROLLER
+   Runs init checks, dismisses splash when ready (max 4s)
+════════════════════════════════════════ */
+(async function runSplash() {
+  const splashEl  = document.getElementById("splash");
+  const statusEl  = document.getElementById("splash-status");
+  const HARD_MAX  = 4000; // never show more than 4 seconds
+
+  const setStatus = (msg) => { if (statusEl) statusEl.textContent = msg; };
+
+  // Start the hard-max timer immediately
+  const hardTimer = setTimeout(() => dismissSplash("Ready ✦"), HARD_MAX);
+
+  function dismissSplash(msg) {
+    clearTimeout(hardTimer);
+    if (!splashEl || splashEl.classList.contains("fade-out")) return;
+    setStatus(msg || "");
+    // Short pause so user sees the final status, then fade
+    setTimeout(() => {
+      splashEl.classList.add("fade-out");
+      setTimeout(() => splashEl.classList.add("gone"), 650);
+    }, 220);
+  }
+
+  try {
+    setStatus("Connecting…");
+    // Check Firebase connectivity with a lightweight .info/connected read
+    const { ref: fbRef, onValue: fbOnValue, off: fbOff } = await import(
+      "https://www.gstatic.com/firebasejs/12.14.0/firebase-database.js"
+    );
+    const connRef = fbRef(db, ".info/connected");
+    await new Promise((resolve) => {
+      const unsub = fbOnValue(connRef, (snap) => {
+        if (snap.val() === true) {
+          fbOff(connRef, "value", unsub);
+          resolve();
+        }
+      });
+      // If Firebase doesn't confirm within 2.5s, continue anyway
+      setTimeout(resolve, 2500);
+    });
+    setStatus("Loading your space…");
+
+    // Tiny buffer so the status is readable
+    await new Promise(r => setTimeout(r, 350));
+
+    // Init PIN screen in the background while splash is still visible
+    await initPinScreen();
+
+    dismissSplash("Ready ✦");
+  } catch (e) {
+    // Any error — just proceed
+    dismissSplash("Ready");
+  }
+})();
 const db      = getDatabase(fireApp);
 
 /* ══════════════════════════════════════════════════════
@@ -2447,7 +2602,7 @@ function handleMainPin(key) {
 }
 
 buildKeyboard("pin-grid", handleMainPin);
-initPinScreen();
+// initPinScreen() is now called by the splash controller above
 
 /* ── API KEY CHECK ── */
 function checkApiKey() {
