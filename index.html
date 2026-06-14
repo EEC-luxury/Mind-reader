@@ -2743,10 +2743,15 @@ async function initPinScreen() {
     await loadPins(storedRoom);
     state.roomCode = storedRoom;
   } else {
-    // First ever visit — use defaults, room will be created on first enter
-    cachedPins.p1 = DEFAULT_PIN.p1;
-    cachedPins.p2 = DEFAULT_PIN.p2;
-    pinsLoaded = true;
+    // New browser / cleared storage — derive the default room and load PINs from
+    // Firebase so this device joins the SAME room as the other player.
+    // Without this, cachedPins stays as DEFAULT_PIN even if the real room has
+    // custom PINs, causing deriveRoomCode() to generate the wrong room key and
+    // both players end up in separate rooms and never see each other.
+    const defaultRoom = deriveRoomCode(DEFAULT_PIN.p1, DEFAULT_PIN.p2);
+    await loadPins(defaultRoom);         // fetches real PINs from Firebase
+    state.roomCode = defaultRoom;
+    localStorage.setItem("MINDSPACE_ROOM_KEY", defaultRoom);
   }
 
   loadEl.classList.remove("show");
