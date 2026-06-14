@@ -3364,7 +3364,7 @@ window.Games = {
     this._teleLoad();
   },
 
-  _teleLoad() {
+  async _teleLoad() {
     const code    = state.roomCode;
     const path    = `rooms/${code}/game/telepathy`;
     const who     = state.who;
@@ -3384,7 +3384,7 @@ window.Games = {
     document.getElementById("tele-status").textContent = "Think of a word, then lock it in. Don't talk about it!";
 
     // Reset Firebase state for this round
-    update(ref(db, path), {
+    await update(ref(db, path), {
       phase: "waiting",
       prompt: prompt.category,
       [who]: "",
@@ -3495,7 +3495,7 @@ window.Games = {
 
   _tttScoreCounted: false,
 
-  _tttInit() {
+  async _tttInit() {
     const code = state.roomCode;
     const path = `rooms/${code}/game/ttt`;
     this._tttScoreCounted = false; // reset guard each round
@@ -3503,7 +3503,7 @@ window.Games = {
 
     // Only P1 resets the board to avoid P2 joining wiping an in-progress game
     if (state.who === "p1") {
-      update(ref(db, path), {
+      await update(ref(db, path), {
         board: Array(9).fill(""),
         turn: "p1",
         winner: "",
@@ -3626,7 +3626,7 @@ window.Games = {
     this._wyrLoad(0);
   },
 
-  _wyrLoad(idx) {
+  async _wyrLoad(idx) {
     const code = state.roomCode;
     const path = `rooms/${code}/game/wyr`;
     const q    = WYR_QUESTIONS[idx % WYR_QUESTIONS.length];
@@ -3640,7 +3640,7 @@ window.Games = {
     document.getElementById("wyr-round").textContent    = `Round ${idx + 1}`;
     document.getElementById("wyr-next-btn").style.display = "none";
 
-    update(ref(db, path), { phase: "voting", idx, p1: "", p2: "" });
+    await update(ref(db, path), { phase: "voting", idx, p1: "", p2: "" });
 
     watchGame(path, (snap) => {
       const d = snap.val();
@@ -4711,7 +4711,13 @@ ${asker}: "${question || "Just checking in."}"`;
     const container = document.getElementById("chat-messages");
     const emptyEl   = document.getElementById("chat-empty");
 
-    if (!data) { emptyEl.style.display = "flex"; return; }
+    if (!data) {
+      container.innerHTML = "";
+      this._rendered = new Set();
+      this._allMessages = [];
+      emptyEl.style.display = "flex";
+      return;
+    }
     emptyEl.style.display = "none";
 
     const msgs = Object.entries(data)
