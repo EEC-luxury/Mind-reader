@@ -2659,9 +2659,9 @@ window.App = {
   saveApiKey() {
     const raw = document.getElementById("api-key-input").value.trim();
     if (!raw) return;
-    // Basic length check — proxy handles both AIza and AQ. key formats
-    if (raw.length < 20) {
-      this.showToast("That doesn't look like a valid key — please check and try again 🔑");
+    // Validate basic format: must start with AIza or AQ.
+    if (!raw.startsWith("AIza") && !raw.startsWith("AQ.")) {
+      this.showToast("That doesn't look right — key should start with AIza or AQ. 🔑");
       return;
     }
     localStorage.setItem(AI_KEY, raw);
@@ -4273,47 +4273,65 @@ ${history || "(empty)"}
 ${asker}: "${question || "Just checking in."}"`;
   },
 
-  /* ── CALL GEMINI (via server-side proxy — no CORS issues) ── */
+  /* ── CALL GEMINI ── */
   async _callGemini(apiKey, prompt) {
+    // Detect key type:
+    //   Old standard keys  → start with "AIza" → pass as ?key= query param
+    //   New auth keys (2026+) → start with "AQ." → pass as x-goog-api-key header
+    const isAuthKey = apiKey.startsWith("AQ.");
+    const url = isAuthKey
+      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
+      : `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+    const headers = { "Content-Type": "application/json" };
+    if (isAuthKey) headers["Authorization"] = `Bearer ${apiKey}`;
+    else headers["x-goog-api-key"] = apiKey;
+
+    const body = {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.85, maxOutputTokens: 180 },
+    };
+
     let res;
     try {
-      // All Gemini calls go through /api/gemini (Vercel serverless function).
-      // The API key is forwarded in a header — never exposed in the URL.
-      res = await fetch("/api/gemini", {
+      res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-gemini-key": apiKey,
-        },
-        body: JSON.stringify({
-          prompt,
-          generationConfig: { temperature: 0.85, maxOutputTokens: 180 },
-        }),
+        headers,
+        body: JSON.stringify(body),
       });
     } catch (networkErr) {
       throw { code: "NETWORK", msg: "No internet connection or request blocked.", detail: networkErr.message };
     }
 
-    const data = await res.json().catch(() => ({}));
-
     if (!res.ok) {
-      const apiMsg = data?.error || "";
-      const status = res.status;
+      const errBody = await res.json().catch(() => ({}));
+      const apiMsg  = errBody?.error?.message || "";
+      const status  = res.status;
 
-      if (status === 400) throw { code: "BAD_KEY",    msg: "Invalid API key (400). Check the key in Settings.", detail: apiMsg };
-      if (status === 401) throw { code: "UNAUTH",     msg: "API key rejected (401). Double-check you copied the full key.", detail: apiMsg };
-      if (status === 403) throw { code: "FORBIDDEN",  msg: "API key not authorised (403). Make sure the Gemini API is enabled in your Google Cloud project.", detail: apiMsg };
-      if (status === 429) throw { code: "QUOTA",      msg: "API quota reached (429). Daily limit hit — try again tomorrow or use a new key.", detail: apiMsg };
-      if (status === 503) throw { code: "OVERLOADED", msg: "Gemini servers overloaded (503). Try again in a minute.", detail: apiMsg };
+      if (status === 400) throw { code: "BAD_KEY",   msg: "Invalid API key (400). Check the key in Settings.", detail: apiMsg };
+      if (status === 401) throw { code: "UNAUTH",    msg: "API key rejected (401). If your key starts with AQ. it is a new auth key — the app now supports these automatically. Double-check you copied the full key.", detail: apiMsg };
+      if (status === 403) throw { code: "FORBIDDEN", msg: "API key not authorised (403). Make sure the Gemini API is enabled in your Google Cloud project.", detail: apiMsg };
+      if (status === 429) throw { code: "QUOTA",     msg: "API quota reached (429). Daily limit hit — try again tomorrow or use a new key.", detail: apiMsg };
+      if (status === 503) throw { code: "OVERLOADED",msg: "Gemini servers overloaded (503). Try again in a minute.", detail: apiMsg };
       throw { code: `HTTP_${status}`, msg: `Gemini error ${status}.`, detail: apiMsg };
     }
 
-    // Check for safety block
-    if (data.finishReason === "SAFETY") {
+    const data = await res.json();
+    // Check for prompt-level block (candidates array is empty when prompt itself is blocked)
+    const blockReason = data?.promptFeedback?.blockReason;
+    if (blockReason) {
+      throw { code: "SAFETY", msg: `Gemini blocked this request (${blockReason}). Try rephrasing.`, detail: "" };
+    }
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    // Check for response-level safety block
+    const finishReason = data?.candidates?.[0]?.finishReason;
+    if (finishReason === "SAFETY") {
       throw { code: "SAFETY", msg: "Gemini blocked this response (safety filter). Try rephrasing.", detail: "" };
     }
 
-    return (data.text || "").trim() || "I'm thinking… but nothing came to me. Try again? 🌙";
+    return text.trim() || "I'm thinking… but nothing came to me. Try again? 🌙";
   },
 
   /* ── AI ERROR DISPLAY ── */
